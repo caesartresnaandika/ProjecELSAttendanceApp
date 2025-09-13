@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "185304471481",
+    "project_id": "test-project-els-id",
+    "storage_bucket": "test-project-els-id.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:185304471481:android:4a1df5367ab0f9180ac868",
+        "android_client_info": {
+          "package_name": "com.example.project_aplikasi_absensi_hrd_els"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDBP4MKh4ODT89yhjkrWfMjO_-d0X75WoE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
