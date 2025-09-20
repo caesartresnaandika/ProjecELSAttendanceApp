@@ -4,41 +4,42 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:project_aplikasi_absensi_hrd_els/screens/Presensi/ConfirmationScreen.dart';
 
-// LANGKAH 1: Tambahkan 'with WidgetsBindingObserver'
 class PhotoScreen extends StatefulWidget {
-  const PhotoScreen({super.key});
+  // 1. TAMBAHKAN VARIABEL UNTUK MENYIMPAN TOKEN
+  final String userId;
+  final String token;
+
+  // 2. PERBAIKI CONSTRUCTOR UNTUK MENYIMPAN TOKEN
+  const PhotoScreen({
+    super.key,
+    required this.userId,
+    required this.token, // Hapus 'String' dan tambahkan 'this.'
+  });
 
   @override
   State<PhotoScreen> createState() => _PhotoScreenState();
 }
 
 class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
-  CameraController? _controller; // Ubah menjadi nullable
+  CameraController? _controller;
   Future<void>? _initializeControllerFuture;
   XFile? _takenImage;
 
   @override
   void initState() {
     super.initState();
-    // LANGKAH 2: Daftarkan observer
     WidgetsBinding.instance.addObserver(this);
     _initializeCamera();
   }
 
-  // LANGKAH 3: Implementasikan didChangeAppLifecycleState
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    super.didChangeAppLifecycleState(state);
-    // Jika controller tidak ada, atau kamera tidak terinisialisasi, jangan lakukan apa-apa
     if (_controller == null || !_controller!.value.isInitialized) {
       return;
     }
-    // Jika aplikasi tidak aktif, hentikan controller
     if (state == AppLifecycleState.inactive) {
       _controller?.dispose();
-    }
-    // Jika aplikasi kembali aktif, nyalakan lagi kameranya
-    else if (state == AppLifecycleState.resumed) {
+    } else if (state == AppLifecycleState.resumed) {
       _initializeCamera();
     }
   }
@@ -59,7 +60,6 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
 
   @override
   void dispose() {
-    // LANGKAH 4: Hapus observer saat widget dihancurkan
     WidgetsBinding.instance.removeObserver(this);
     _controller?.dispose();
     super.dispose();
@@ -69,7 +69,6 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
     try {
       await _initializeControllerFuture;
       final image = await _controller!.takePicture();
-
       setState(() {
         _takenImage = image;
       });
@@ -84,12 +83,17 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
     });
   }
 
+  // 3. PERBAIKI FUNGSI INI UNTUK MENGIRIM TOKEN ASLI
   void _confirmPicture() {
     if (_takenImage == null) return;
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ConfirmationScreen(imagePath: _takenImage!.path),
+        builder: (context) => ConfirmationScreen(
+          imagePath: _takenImage!.path,
+          userId: widget.userId, // Gunakan userId dari widget
+          token: widget.token,     // Gunakan token dari widget
+        ),
       ),
     );
   }
@@ -101,7 +105,6 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
       body: FutureBuilder<void>(
         future: _initializeControllerFuture,
         builder: (context, snapshot) {
-          // Pastikan controller tidak null sebelum digunakan
           if (snapshot.connectionState == ConnectionState.done && _controller != null) {
             if (_takenImage == null) {
               return Stack(

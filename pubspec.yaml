@@ -6,7 +6,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 flutter_launcher_icons:
     android: "launcher_icon"
     ios: true
-    image_path: "assets/icon.png" # <-- GANTI DENGAN PATH IKONMU
+    image_path: "assets/icon.png"
     min_sdk_android: 21 # optional
 # The following defines the version and build number for your application.
 # A version number is three numbers separated by dots, like 1.2.43
@@ -51,6 +51,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   cloud_firestore: ^6.0.1
+  shared_preferences: ^2.5.3
 
 dev_dependencies:
   flutter_test:

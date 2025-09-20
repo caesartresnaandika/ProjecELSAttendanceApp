@@ -4,10 +4,21 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:intl/intl.dart';
+import 'package:project_aplikasi_absensi_hrd_els/services/api_services.dart';
+import 'package:project_aplikasi_absensi_hrd_els/screens/SignIn/SignInPage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class ConfirmationScreen extends StatefulWidget {
   final String imagePath;
-  const ConfirmationScreen({super.key, required this.imagePath});
+  final String userId;
+  final String token;
+
+  const ConfirmationScreen({
+    super.key,
+    required this.imagePath,
+    required this.userId,
+    required this.token,
+  });
 
   @override
   State<ConfirmationScreen> createState() => _ConfirmationScreenState();
@@ -15,7 +26,7 @@ class ConfirmationScreen extends StatefulWidget {
 
 class _ConfirmationScreenState extends State<ConfirmationScreen> {
   String? _address;
-  Position?   _position;
+  Position? _position;
   bool _isLoading = true;
 
   @override
@@ -24,77 +35,91 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
     _getCurrentLocation();
   }
 
-  // Di dalam kelas _ConfirmationScreenState
-
   Future<void> _getCurrentLocation() async {
-    setState(() {
-      _isLoading = true; // Mulai loading
-    });
-
-    // 1. Cek apakah layanan lokasi aktif
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) {
-      setState(() {
-        _address = "Layanan lokasi tidak aktif.";
-        _isLoading = false;
-      });
-      return;
-    }
-
-    // 2. Cek dan minta izin lokasi
-    LocationPermission permission = await Geolocator.checkPermission();
-    if (permission == LocationPermission.denied) {
-      permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) {
-        setState(() {
-          _address = "Izin lokasi ditolak.";
-          _isLoading = false;
-        });
-        return;
-      }
-    }
-
-    if (permission == LocationPermission.deniedForever) {
-      setState(() {
-        _address = "Izin lokasi ditolak permanen. Aktifkan di pengaturan HP.";
-        _isLoading = false;
-      });
-      return;
-    }
-
-    // 3. Jika izin sudah diberikan, baru ambil lokasi
+    setState(() => _isLoading = true);
     try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) throw Exception('Layanan lokasi tidak aktif.');
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission != LocationPermission.whileInUse && permission != LocationPermission.always) {
+          throw Exception('Izin lokasi ditolak.');
+        }
+      }
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Izin lokasi ditolak permanen.');
+      }
       Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
       List<Placemark> placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
-
-      setState(() {
-        _position = position;
-        _address = placemarks.isNotEmpty
-            ? "${placemarks[0].street}, ${placemarks[0].locality}"
-            : "Lokasi tidak ditemukan";
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _position = position;
+          _address = placemarks.isNotEmpty ? "${placemarks[0].street}, ${placemarks[0].locality}" : "Alamat tidak ditemukan";
+        });
+      }
     } catch (e) {
-      setState(() {
-        _address = "Terjadi error saat mengambil lokasi.";
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _address = "Gagal mendapatkan lokasi.";
+        });
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
-  void _submitPresence() {
-    // Di sini kamu akan memanggil API Service-mu
-    // dummyApiService.clockIn(userId, _position, widget.imagePath);
+  // FUNGSI SUBMIT PRESENSI YANG SUDAH TERHUBUNG KE API
+  void _submitPresence() async {
+    if (_position == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Lokasi belum siap, coba lagi.')),
+      );
+      return;
+    }
 
-    // Tampilkan pesan sukses
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Kehadiran berhasil dicatat!')),
-    );
+    setState(() => _isLoading = true);
 
-    // Kembali ke halaman Beranda (MainMenu) dan hapus semua halaman di atasnya
-    Navigator.popUntil(context, (route) => route.isFirst);
+    final apiService = ApiService();
+
+    try {
+      bool success = await apiService.recordAttendance(
+        token: widget.token, // Gunakan token asli dari halaman sebelumnya
+        type: 'checkin',      // Untuk tipe presensi
+        imagePath: widget.imagePath,
+        latitude: _position!.latitude,
+        longitude: _position!.longitude,
+      );
+
+      if (mounted) setState(() => _isLoading = false);
+
+      if (success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Kehadiran berhasil dicatat!')),
+        );
+        Navigator.popUntil(context, (route) => route.isFirst);
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Gagal mencatat kehadiran! Coba lagi.')),
+        );
+      }
+    } on SessionExpiredException catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.clear();
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
+        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const SignInPage()), (route) => false);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi error: ${e.toString()}')));
+      }
+    }
   }
-
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
@@ -166,3 +191,4 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
     );
   }
 }
+

@@ -1,32 +1,21 @@
 import 'package:flutter/material.dart';
-import '../../services/dummy_api_service.dart';
-import '../../services/firestore_service.dart';
-import '../MainMenu/MainMenu.dart';
-import '../../firebase_options.dart';
+import '../../services/api_services.dart';
+import '../../models/user_model.dart';
+import '../MainPage.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class SignInPage extends StatelessWidget {
   const SignInPage({super.key});
 
-
   @override
   Widget build(BuildContext context) {
-    final bool isSmallScreen = MediaQuery.of(context).size.width < 600;
-
-    return Scaffold(
+    return const Scaffold(
       body: Center(
-        child: isSmallScreen
-            ? const Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [_Logo(), _FormContent()],
-        )
-            : Container(
-          padding: const EdgeInsets.all(32.0),
-          constraints: const BoxConstraints(maxWidth: 800),
-          child: const Row(
-            children: [
-              Expanded(child: _Logo()),
-              Expanded(child: Center(child: _FormContent())),
-            ],
+        child: SingleChildScrollView( // Tambahkan ini agar bisa di-scroll di layar kecil
+          padding: EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [_Logo(), _FormContent()],
           ),
         ),
       ),
@@ -36,36 +25,27 @@ class SignInPage extends StatelessWidget {
 
 class _Logo extends StatelessWidget {
   const _Logo();
-
   @override
   Widget build(BuildContext context) {
-    final bool isSmallScreen = MediaQuery.of(context).size.width < 600;
-
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Image.asset(
-          'assets/logoels.jpg',
-          height: isSmallScreen ? 100 : 200,
-          width: isSmallScreen ? 100 : 200,
-          fit: BoxFit.contain,
+          'assets/icon.png', // Pastikan path benar
+          width: 120,
         ),
-        Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Text(
-            "ELS PRESENCE",
-            textAlign: TextAlign.center,
-            style: isSmallScreen
-                ? Theme.of(context).textTheme.titleMedium
-                : Theme.of(context).textTheme.titleSmall,
-          ),
+        const SizedBox(height: 16),
+        const Text(
+          "ELS Attendance",
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
         ),
+        const SizedBox(height: 24),
       ],
     );
   }
 }
 
-// GANTI SELURUH KELAS DI BAWAH INI
+
 class _FormContent extends StatefulWidget {
   const _FormContent();
 
@@ -79,21 +59,18 @@ class __FormContentState extends State<_FormContent> {
   bool _isLoading = false;
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
-
-  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
-
-  // GANTI KEMBALI KE DUMMY API SERVICE
-  final DummyApiService _apiService = DummyApiService();
+  final ApiService _apiService = ApiService();
 
   @override
   void dispose() {
-    _emailController.dispose();
+    _usernameController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
 
-  // KEMBALIKAN LOGIKA HANDLE LOGIN UNTUK DUMMY SERVICE
+  // 2. MODIFIKASI HANDLE LOGIN UNTUK API ASLI
   Future<void> _handleLogin() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
@@ -101,9 +78,8 @@ class __FormContentState extends State<_FormContent> {
       _isLoading = true;
     });
 
-    // Panggil fungsi login dari dummy service yang mengembalikan bool
-    final bool success = await _apiService.login(
-      _emailController.text,
+    final response = await _apiService.login(
+      _usernameController.text, // Gunakan username
       _passwordController.text,
     );
 
@@ -111,26 +87,37 @@ class __FormContentState extends State<_FormContent> {
       _isLoading = false;
     });
 
-    if (success && mounted) {
-      // Ganti ke MainMenu seperti biasa
+    if (response != null && mounted) {
+      final User user = response['user']; // Dapatkan objek User
+      final String token = response['token']; // Dapatkan token
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('user_token', token);
+      await prefs.setString('user_name', user.username);
+      await prefs.setString('user_id', user.id);
+
+      // TODO: Simpan token ini untuk request API selanjutnya
+
+      // 3. KIRIM OBJEK USER KE MAINMENU
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (context) => const MainMenu()),
+        MaterialPageRoute(
+          builder: (context) => MainPage(userData: user, token: token), // Kirim objek User
+        ),
       );
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           backgroundColor: Colors.red,
-          content: Text('Login Gagal! Email atau password salah.'),
+          content: Text('Login Gagal! Username atau password salah.'),
         ),
       );
     }
   }
 
+  // --- GANTI SELURUH METHOD build DENGAN INI ---
   @override
   Widget build(BuildContext context) {
-    // Seluruh isi method build() TIDAK ADA YANG BERUBAH.
-    // Tetap sama seperti kodemu sebelumnya.
     return Container(
       constraints: const BoxConstraints(maxWidth: 300),
       child: Form(
@@ -140,34 +127,25 @@ class __FormContentState extends State<_FormContent> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             TextFormField(
-              controller: _emailController,
+              controller: _usernameController,
               validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Email tidak boleh kosong';
-                }
-                bool emailValid = RegExp(r"^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]+").hasMatch(value);
-                if (!emailValid) {
-                  return 'Format email tidak valid';
-                }
+                if (value == null || value.isEmpty) return 'Username tidak boleh kosong';
                 return null;
               },
               decoration: const InputDecoration(
-                labelText: 'Email',
-                hintText: 'Enter your email',
-                prefixIcon: Icon(Icons.email_outlined),
+                labelText: 'Username',
+                hintText: 'Enter your username',
+                prefixIcon: Icon(Icons.person_outline),
                 border: OutlineInputBorder(),
               ),
             ),
             _gap(),
+            // KODE LENGKAP UNTUK TEXTFORMFIELD PASSWORD
             TextFormField(
               controller: _passwordController,
               validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Password tidak boleh kosong';
-                }
-                if (value.length < 6) {
-                  return 'Password minimal 6 karakter';
-                }
+                if (value == null || value.isEmpty) return 'Password tidak boleh kosong';
+                if (value.length < 6) return 'Password minimal 6 karakter';
                 return null;
               },
               obscureText: !_isPasswordVisible,
@@ -187,6 +165,7 @@ class __FormContentState extends State<_FormContent> {
               ),
             ),
             _gap(),
+            // KODE LENGKAP UNTUK CHECKBOX
             CheckboxListTile(
               value: _rememberMe,
               onChanged: (value) {
@@ -195,32 +174,29 @@ class __FormContentState extends State<_FormContent> {
                   _rememberMe = value;
                 });
               },
-              title: const Text('Remember me'),
+              title: const Text('Remember Me'),
               controlAffinity: ListTileControlAffinity.leading,
               dense: true,
-              contentPadding: const EdgeInsets.all(0),
+              contentPadding: EdgeInsets.zero,
             ),
             _gap(),
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                  backgroundColor: Colors.orange, // Ganti warna agar konsisten
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
                 onPressed: _isLoading ? null : _handleLogin,
-                child: Padding(
-                  padding: const EdgeInsets.all(10.0),
-                  child: _isLoading
-                      ? const SizedBox(
-                    height: 20,
-                    width: 20,
-                    child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
-                  )
-                      : const Text(
-                    'Sign in',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
+                child: _isLoading
+                    ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                )
+                    : const Text('Sign In', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           ],
