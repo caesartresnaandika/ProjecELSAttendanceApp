@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:project_aplikasi_absensi_hrd_els/models/user_model.dart';
+import 'package:project_aplikasi_absensi_hrd_els/screens/PerjalananDInas/PerjalananDinasScreen.dart';
 import 'package:project_aplikasi_absensi_hrd_els/screens/Presensi/PhotoScreen.dart';
 import 'package:project_aplikasi_absensi_hrd_els/services/api_services.dart';
 import 'package:project_aplikasi_absensi_hrd_els/screens/Cuti/PengajuanCuti.dart';
@@ -43,57 +44,6 @@ class _MainMenuState extends State<MainMenu> {
     );
   }
 
-  // ✅ HEADER BRAND ELS.ID
-  // Widget _buildBrandHeader() {
-  //   return Container(
-  //     padding: const EdgeInsets.all(16),
-  //     decoration: BoxDecoration(
-  //       color: Colors.white,
-  //       borderRadius: BorderRadius.circular(16),
-  //       boxShadow: [
-  //         BoxShadow(
-  //           color: Colors.black.withOpacity(0.05),
-  //           blurRadius: 10,
-  //           offset: const Offset(0, 2),
-  //         ),
-  //       ],
-  //     ),
-  //     child: Row(
-  //       children: [
-  //         Container(
-  //           padding: const EdgeInsets.all(10),
-  //           decoration: const BoxDecoration(
-  //             color: Color(0xFFFF6F00),
-  //             shape: BoxShape.circle,
-  //           ),
-  //           child: const Icon(Icons.work_outline, color: Colors.white, size: 24),
-  //         ),
-  //         const SizedBox(width: 12),
-  //         const Column(
-  //           crossAxisAlignment: CrossAxisAlignment.start,
-  //           children: [
-  //             Text(
-  //               "els.id",
-  //               style: TextStyle(
-  //                 fontSize: 20,
-  //                 fontWeight: FontWeight.bold,
-  //                 color: Color(0xFFFF6F00),
-  //               ),
-  //             ),
-  //             Text(
-  //               "Sistem Absensi & Presensi Karyawan",
-  //               style: TextStyle(
-  //                 fontSize: 12,
-  //                 color: Colors.grey,
-  //               ),
-  //             ),
-  //           ],
-  //         ),
-  //       ],
-  //     ),
-  //   );
-  // }
-
   // ✅ MENU UTAMA — GUNAKAN WRAP UNTUK HINDARI OVERFLOW
   Widget _buildFavoriteMenu() {
     return Column(
@@ -127,8 +77,9 @@ class _MainMenuState extends State<MainMenu> {
               );
             }),
             _buildMenuItem(Icons.card_travel_outlined, "Dinas", Colors.purple, () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('Fitur Perjalanan Dinas akan segera hadir')),
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PerjalananDinasScreen()),
               );
             }),
             _buildMenuItem(Icons.calendar_today, "Kalender", Colors.green, () {
