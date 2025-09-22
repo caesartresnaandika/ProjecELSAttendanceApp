@@ -88,7 +88,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
       bool success = await apiService.recordAttendance(
         token: widget.token, // Gunakan token asli dari halaman sebelumnya
         type: 'checkin',      // Untuk tipe presensi
-        imagePath: widget.imagePath,
+        photo: widget.imagePath,
         latitude: _position!.latitude,
         longitude: _position!.longitude,
       );
@@ -139,7 +139,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
             // Menampilkan foto yang diambil
           // Wadah untuk mengatur ukuran dan posisi bingkai gambar
             SizedBox(
-              height: 240, // Tinggi bingkai (bisa disesuaikan)
+              height: 240, // Tinggi bingkai
               width: 180,  // Lebar bingkai (proporsi ~4x6)
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),

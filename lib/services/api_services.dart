@@ -58,7 +58,7 @@ class ApiService {
   Future<bool> recordAttendance({
     required String token,
     required String type,
-    required String imagePath,
+    required String photo,
     required double latitude,
     required double longitude,
   }) async {
@@ -71,7 +71,7 @@ class ApiService {
     print("DEBUG: Type: $type");
     print("DEBUG: Latitude: $latitude");
     print("DEBUG: Longitude: $longitude");
-    print("DEBUG: Image Path: $imagePath");
+    print("DEBUG: Image Path: $photo");
 
     // --- BAGIAN YANG DIPERBAIKI ---
     String basicAuth = 'Basic ${base64Encode(utf8.encode('$_basicAuthUsername:$_basicAuthPassword'))}';
@@ -92,10 +92,10 @@ class ApiService {
     print("DEBUG: Request Fields: ${request.fields}");
 
     // Cek apakah file gambar ada
-    File imageFile = File(imagePath);
+    File imageFile = File(photo);
     if (await imageFile.exists()) {
       print("DEBUG: File image exists, size: ${await imageFile.length()} bytes");
-      request.files.add(await http.MultipartFile.fromPath('photo', imagePath));
+      request.files.add(await http.MultipartFile.fromPath('photo', photo));
       print("DEBUG: Photo file added to request");
     } else {
       print("DEBUG: ERROR - File image does not exist!");

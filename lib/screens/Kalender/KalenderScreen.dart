@@ -8,7 +8,7 @@ class KalenderScreen extends StatefulWidget {
   _KalenderScreenState createState() => _KalenderScreenState();
 }
 
-class _KalenderScreenState extends State<KalenderScreen> {
+class _KalenderScreenState extends State<KalenderScreen> with TickerProviderStateMixin {
   DateTime _selectedDate = DateTime.now();
   final List<DateTime> _publicHolidays = [
     DateTime(DateTime.now().year, 1, 1),   // Tahun Baru
@@ -18,69 +18,115 @@ class _KalenderScreenState extends State<KalenderScreen> {
 
   final List<Map<String, dynamic>> _events = [
     {'date': DateTime(2025, 9, 20), 'title': 'Ijin Dokter', 'type': 'ijin', 'completed': false},
-    {'date': DateTime(2025, 9, 20), 'title': 'Ijin', 'type': 'ijin', 'completed': true},
+    {'date': DateTime(2025, 9, 20), 'title': 'Rapat Internal', 'type': 'ijin', 'completed': true},
     {'date': DateTime(2025, 9, 15), 'title': 'Cuti Tahunan', 'type': 'cuti', 'completed': false},
     {'date': DateTime(2025, 9, 25), 'title': 'Meeting Client', 'type': 'meeting', 'completed': false},
   ];
 
+  late AnimationController _animationController;
+  late Animation<double> _scaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 300),
+    );
+    _scaleAnimation = Tween<double>(begin: 1.0, end: 1.05).animate(_animationController);
+  }
+
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        title: Text('Kalender Kerja'),
-        backgroundColor: Colors.orange[700],
-        elevation: 0,
-        foregroundColor: Colors.white,
+        title: const Text(
+          'Kalender Kerja',
+          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black),
+        ),
+        backgroundColor: Colors.white,
+        elevation: 1,
+        centerTitle: true,
+        iconTheme: const IconThemeData(color: Colors.black),
       ),
       body: Column(
         children: [
-          // Header dengan bulan dan tahun
+          // 👉 HEADER BULAN
           Container(
-            padding: EdgeInsets.all(16),
-            color: Colors.orange[50],
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            color: Colors.white,
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 IconButton(
-                  icon: Icon(Icons.chevron_left, color: Colors.orange[700]),
+                  icon: const Icon(Icons.chevron_left, color: Colors.grey),
                   onPressed: () => _changeMonth(-1),
                 ),
-                Text(
-                  DateFormat('MMMM yyyy').format(_selectedDate),
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orange[700],
+                GestureDetector(
+                  onTap: _showMonthYearPicker, // 👈 Tambahkan onTap
+                  child: AnimatedBuilder(
+                    animation: _animationController,
+                    builder: (context, child) {
+                      return Transform.scale(
+                        scale: _scaleAnimation.value,
+                        child: Text(
+                          DateFormat('MMMM yyyy').format(_selectedDate),
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFFFF6F00),
+                          ),
+                        ),
+                      );
+                    },
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.chevron_right, color: Colors.orange[700]),
+                  icon: const Icon(Icons.chevron_right, color: Colors.grey),
                   onPressed: () => _changeMonth(1),
                 ),
               ],
             ),
           ),
 
-          // Grid hari dalam seminggu
+          // 👉 HEADER HARI (Sen - Min)
           Container(
-            color: Colors.orange[100],
+            color: Colors.white,
             child: GridView.builder(
               shrinkWrap: true,
-              physics: NeverScrollableScrollPhysics(),
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              physics: const NeverScrollableScrollPhysics(),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 7,
+                childAspectRatio: 1,
               ),
               itemCount: 7,
               itemBuilder: (context, index) {
                 final days = ['Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab', 'Min'];
+                final isWeekend = index >= 6;
                 return Container(
                   alignment: Alignment.center,
-                  padding: EdgeInsets.symmetric(vertical: 8),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      bottom: BorderSide(
+                        color: isWeekend ? Colors.red.withOpacity(0.3) : Colors.orange.withOpacity(0.2),
+                        width: 2,
+                      ),
+                    ),
+                  ),
                   child: Text(
                     days[index],
                     style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: index >= 5 ? Colors.red : Colors.orange[700],
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: isWeekend ? Colors.red : const Color(0xFFFF6F00),
                     ),
                   ),
                 );
@@ -88,67 +134,82 @@ class _KalenderScreenState extends State<KalenderScreen> {
             ),
           ),
 
-          // Grid kalender
+          // 👉 GRID KALENDER
           Expanded(
             child: GridView.builder(
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              padding: const EdgeInsets.all(8),
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 7,
+                childAspectRatio: 1,
               ),
               itemCount: _getDaysInMonth() + _getFirstWeekday(),
               itemBuilder: (context, index) {
                 if (index < _getFirstWeekday()) {
-                  return Container(); // Hari kosong di awal bulan
+                  return const SizedBox(); // Spacer
                 }
 
                 final day = index - _getFirstWeekday() + 1;
                 final currentDate = DateTime(_selectedDate.year, _selectedDate.month, day);
                 final isToday = _isSameDay(currentDate, DateTime.now());
                 final isHoliday = _publicHolidays.any((date) => _isSameDay(date, currentDate));
-                final isWeekend = currentDate.weekday == 6 || currentDate.weekday == 7;
+                final isWeekend = currentDate.weekday == 7;
                 final hasEvent = _events.any((event) => _isSameDay(event['date'], currentDate));
+
+                // ✅ PINDAHKAN LOGIKA Warna ke luar decoration
+                final backgroundColor = _getDayBackgroundColor(currentDate, isToday, isHoliday, isWeekend);
+                final textColor = _getDayTextColor(isToday, isHoliday, isWeekend);
 
                 return GestureDetector(
                   onTap: () {
                     setState(() {
                       _selectedDate = currentDate;
                     });
+                    _animationController.forward();
+                    Future.delayed(const Duration(milliseconds: 300), () {
+                      _animationController.reverse();
+                    });
                   },
                   child: Container(
-                    margin: EdgeInsets.all(2),
+                    margin: const EdgeInsets.all(2),
                     decoration: BoxDecoration(
-                      color: isToday ? Colors.orange[700]! :
-                      isHoliday ? Colors.red[50]! :
-                      isWeekend ? Colors.grey[50]! :
-                      Colors.white,
+                      color: backgroundColor,
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: _isSameDay(currentDate, _selectedDate) ? Colors.orange : Colors.grey[200]!,
-                        width: _isSameDay(currentDate, _selectedDate) ? 2 : 1,
+                        color: _isSameDay(currentDate, _selectedDate)
+                            ? const Color(0xFFFF6F00)
+                            : Colors.transparent,
+                        width: 2,
                       ),
-                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: _isSameDay(currentDate, _selectedDate)
+                          ? [
+                        BoxShadow(
+                          color: const Color(0xFFFF6F00).withOpacity(0.2),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ]
+                          : null,
                     ),
                     child: Stack(
+                      alignment: Alignment.center,
                       children: [
-                        Center(
-                          child: Text(
-                            day.toString(),
-                            style: TextStyle(
-                              color: isToday ? Colors.white :
-                              isHoliday ? Colors.red :
-                              isWeekend ? Colors.red :
-                              Colors.black,
-                              fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                            ),
+                        Text(
+                          day.toString(),
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
+                            color: textColor,
                           ),
                         ),
                         if (hasEvent)
                           Positioned(
-                            bottom: 2,
-                            right: 2,
+                            top: 4,
+                            right: 4,
                             child: Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: Colors.orange[700]!,
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: Color(0xFFFF6F00),
                                 shape: BoxShape.circle,
                               ),
                             ),
@@ -161,53 +222,119 @@ class _KalenderScreenState extends State<KalenderScreen> {
             ),
           ),
 
-          // Event list untuk tanggal yang dipilih
+          // 👉 EVENT LIST
           Container(
-            height: 200,
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.grey[50],
-              border: Border(top: BorderSide(color: Colors.grey[300]!)),
+            height: 220,
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.only(
+                topLeft: Radius.circular(24),
+                topRight: Radius.circular(24),
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Color.fromARGB(13, 0, 0, 0),
+                  blurRadius: 10,
+                  offset: Offset(0, -3),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Event pada ${DateFormat('dd MMM yyyy').format(_selectedDate)}',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    color: Colors.orange[700],
+                  'Event pada ${DateFormat('EEEE, d MMMM y', 'id_ID').format(_selectedDate)}',
+                  style: const TextStyle(
                     fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
                   ),
                 ),
-                SizedBox(height: 12),
+                const SizedBox(height: 16),
                 Expanded(
                   child: _getEventsForSelectedDate().isEmpty
-                      ? Center(child: Text('Tidak ada event', style: TextStyle(color: Colors.grey)))
-                      : ListView(
-                    children: _getEventsForSelectedDate().map((event) => ListTile(
-                      leading: Container(
-                        width: 24,
-                        height: 24,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: event['completed'] ? Colors.green : Colors.transparent,
-                          border: Border.all(
-                            color: event['completed'] ? Colors.green : Colors.grey,
-                            width: 2,
-                          ),
+                      ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.event_available, color: Colors.grey, size: 48),
+                        const SizedBox(height: 8),
+                        Text(
+                          "Tidak ada agenda",
+                          style: TextStyle(color: Colors.grey, fontSize: 14),
                         ),
-                        child: event['completed']
-                            ? Icon(Icons.check, size: 16, color: Colors.white)
-                            : null,
-                      ),
-                      title: Text(event['title']),
-                      subtitle: Text(_getEventTypeText(event['type'])),
-                      trailing: Icon(
-                        _getEventIcon(event['type']),
-                        color: Colors.orange[700],
-                      ),
-                    )).toList(),
+                      ],
+                    ),
+                  )
+                      : ListView(
+                    children: _getEventsForSelectedDate().map((event) {
+                      final icon = _getEventIcon(event['type']);
+                      final color = _getEventTypeColor(event['type']);
+                      return Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(14),
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(12),
+                            border: Border(left: BorderSide(width: 4, color: color))
+                        ),
+                        child: Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: color.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Icon(icon, color: color, size: 20),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    event['title'],
+                                    style: const TextStyle(
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w500,
+                                      color: Colors.black87,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        event['completed']
+                                            ? Icons.check_circle
+                                            : Icons.radio_button_unchecked,
+                                        size: 14,
+                                        color: event['completed']
+                                            ? Colors.green
+                                            : Colors.grey,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(
+                                        event['completed'] ? "Selesai" : "Belum selesai",
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: event['completed']
+                                              ? Colors.green
+                                              : Colors.grey,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    }).toList(),
                   ),
                 ),
               ],
@@ -216,6 +343,21 @@ class _KalenderScreenState extends State<KalenderScreen> {
         ],
       ),
     );
+  }
+
+  // ✅ Fungsi untuk mendapatkan warna background
+  Color _getDayBackgroundColor(DateTime date, bool isToday, bool isHoliday, bool isWeekend) {
+    if (isToday) return const Color(0xFFFF6F00);
+    if (isHoliday) return Colors.red.withOpacity(0.1);
+    if (isWeekend) return Colors.grey.withOpacity(0.1);
+    return Colors.white;
+  }
+
+  // ✅ Fungsi untuk mendapatkan warna teks
+  Color _getDayTextColor(bool isToday, bool isHoliday, bool isWeekend) {
+    if (isToday) return Colors.white;
+    if (isHoliday || isWeekend) return Colors.red;
+    return Colors.black87;
   }
 
   int _getDaysInMonth() {
@@ -236,8 +378,91 @@ class _KalenderScreenState extends State<KalenderScreen> {
     setState(() {
       _selectedDate = DateTime(_selectedDate.year, _selectedDate.month + delta, 1);
     });
-  }
 
+  }
+  void _showMonthYearPicker() {
+    // Inisialisasi nilai awal
+    int selectedMonth = _selectedDate.month;
+    int selectedYear = _selectedDate.year;
+
+    // Daftar bulan
+    final List<String> months = [
+      'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+      'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+    ];
+
+    // Rentang tahun (misal: 5 tahun ke belakang & 5 tahun ke depan)
+    final List<int> years = List.generate(11, (index) => DateTime.now().year - 5 + index);
+
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text("Pilih Bulan & Tahun"),
+          content: SizedBox(
+            width: 300,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Dropdown Bulan
+                DropdownButtonFormField<int>(
+                  value: selectedMonth,
+                  decoration: const InputDecoration(labelText: "Bulan"),
+                  items: List.generate(12, (index) {
+                    return DropdownMenuItem(
+                      value: index + 1,
+                      child: Text(months[index]),
+                    );
+                  }),
+                  onChanged: (value) {
+                    selectedMonth = value!;
+                  },
+                ),
+                const SizedBox(height: 16),
+                // Dropdown Tahun
+                DropdownButtonFormField<int>(
+                  value: selectedYear,
+                  decoration: const InputDecoration(labelText: "Tahun"),
+                  items: years.map((year) {
+                    return DropdownMenuItem(
+                      value: year,
+                      child: Text(year.toString()),
+                    );
+                  }).toList(),
+                  onChanged: (value) {
+                    selectedYear = value!;
+                  },
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text("Batal"),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                setState(() {
+                  _selectedDate = DateTime(selectedYear, selectedMonth, 1);
+                });
+                Navigator.pop(context);
+                // Trigger animasi
+                _animationController.forward();
+                Future.delayed(const Duration(milliseconds: 300), () {
+                  _animationController.reverse();
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFF6F00),
+              ),
+              child: const Text("Pilih", style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        );
+      },
+    );
+  }
   List<Map<String, dynamic>> _getEventsForSelectedDate() {
     return _events.where((event) => _isSameDay(event['date'], _selectedDate)).toList();
   }
@@ -251,12 +476,12 @@ class _KalenderScreenState extends State<KalenderScreen> {
     }
   }
 
-  String _getEventTypeText(String type) {
+  Color _getEventTypeColor(String type) {
     switch (type) {
-      case 'cuti': return 'Cuti';
-      case 'ijin': return 'Ijin';
-      case 'meeting': return 'Meeting';
-      default: return 'Event';
+      case 'cuti': return Colors.blue;
+      case 'ijin': return const Color(0xFFFF6F00); // Orange brand
+      case 'meeting': return Colors.purple;
+      default: return Colors.grey;
     }
   }
 }

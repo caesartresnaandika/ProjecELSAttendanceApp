@@ -1,14 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:project_aplikasi_absensi_hrd_els/models/user_model.dart';
 import 'package:project_aplikasi_absensi_hrd_els/screens/Presensi/PhotoScreen.dart';
 import 'package:project_aplikasi_absensi_hrd_els/services/api_services.dart';
-// Import halaman-halaman baru
 import 'package:project_aplikasi_absensi_hrd_els/screens/Cuti/PengajuanCuti.dart';
 import 'package:project_aplikasi_absensi_hrd_els/screens/Kalender/KalenderScreen.dart';
 import '../Ijin/IjinScreen.dart';
 
-// MainMenu sekarang hanya fokus pada konten Beranda
 class MainMenu extends StatefulWidget {
   final User userData;
   final String token;
@@ -21,131 +20,179 @@ class MainMenu extends StatefulWidget {
 class _MainMenuState extends State<MainMenu> {
   @override
   Widget build(BuildContext context) {
-    // Tidak ada Scaffold, karena sudah diatur oleh MainPage
     return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _AttendanceCard(
-              userData: widget.userData,
-              token: widget.token, // Teruskan token ke _AttendanceCard
-            ),
-            const SizedBox(height: 24),
-            _buildFavoriteMenu(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Method-method helper untuk konten tetap ada di sini
-  Widget _buildFavoriteMenu() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text("Menu", style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-        const SizedBox(height: 12),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildMenuItem(Icons.card_giftcard, "Cuti", () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => PengajuanCuti()),
-              );
-            }),
-            _buildMenuItem(Icons.holiday_village, "Ijin", () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => IjinScreen()),
-              );
-            }),
-            _buildMenuItem(Icons.calendar_today, "Kalender", () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => KalenderScreen()),
-              );
-            }),
-          ],
-        ),
-        const SizedBox(height: 16),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceAround,
-          children: [
-            _buildMenuItem(Icons.card_travel_outlined, "Dinas", () {
-              // TODO: Tambahkan navigasi ke halaman Perjalanan Dinas
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Fitur Perjalanan Dinas akan segera hadir')),
-              );
-            }),
-            _buildMenuItem(Icons.history, "Riwayat", () {
-              // TODO: Tambahkan navigasi ke halaman Riwayat
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Fitur Riwayat akan segera hadir')),
-              );
-            }),
-            _buildMenuItem(Icons.settings, "Pengaturan", () {
-              // TODO: Tambahkan navigasi ke halaman Pengaturan
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('Fitur Pengaturan akan segera hadir')),
-              );
-            }),
-          ],
-        )
-      ],
-    );
-  }
-
-  Widget _buildMenuItem(IconData icon, String label, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
+      padding: const EdgeInsets.all(16.0),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.grey.withOpacity(0.2),
-                  blurRadius: 4,
-                  offset: Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Icon(icon, color: _getIconColor(label), size: 28),
+          // // 👉 HEADER BRAND ELS.ID
+          // _buildBrandHeader(),
+          // const SizedBox(height: 24),
+
+          // 👉 CARD ABSENSI
+          _AttendanceCard(
+            userData: widget.userData,
+            token: widget.token,
           ),
-          const SizedBox(height: 8),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 12),
-            textAlign: TextAlign.center,
-          ),
+          const SizedBox(height: 24),
+
+          // 👉 MENU UTAMA
+          _buildFavoriteMenu(),
         ],
       ),
     );
   }
 
-  Color _getIconColor(String label) {
-    switch (label) {
-      case 'Cuti':
-        return Colors.blue[700]!;
-      case 'Ijin':
-        return Colors.orange[700]!;
-      case 'Kalender':
-        return Colors.green[700]!;
-      case 'Dinas':
-        return Colors.purple[700]!;
-      case 'Riwayat':
-        return Colors.teal[700]!;
-      case 'Pengaturan':
-        return Colors.grey[700]!;
-      default:
-        return Colors.blue.shade800;
-    }
+  // ✅ HEADER BRAND ELS.ID
+  // Widget _buildBrandHeader() {
+  //   return Container(
+  //     padding: const EdgeInsets.all(16),
+  //     decoration: BoxDecoration(
+  //       color: Colors.white,
+  //       borderRadius: BorderRadius.circular(16),
+  //       boxShadow: [
+  //         BoxShadow(
+  //           color: Colors.black.withOpacity(0.05),
+  //           blurRadius: 10,
+  //           offset: const Offset(0, 2),
+  //         ),
+  //       ],
+  //     ),
+  //     child: Row(
+  //       children: [
+  //         Container(
+  //           padding: const EdgeInsets.all(10),
+  //           decoration: const BoxDecoration(
+  //             color: Color(0xFFFF6F00),
+  //             shape: BoxShape.circle,
+  //           ),
+  //           child: const Icon(Icons.work_outline, color: Colors.white, size: 24),
+  //         ),
+  //         const SizedBox(width: 12),
+  //         const Column(
+  //           crossAxisAlignment: CrossAxisAlignment.start,
+  //           children: [
+  //             Text(
+  //               "els.id",
+  //               style: TextStyle(
+  //                 fontSize: 20,
+  //                 fontWeight: FontWeight.bold,
+  //                 color: Color(0xFFFF6F00),
+  //               ),
+  //             ),
+  //             Text(
+  //               "Sistem Absensi & Presensi Karyawan",
+  //               style: TextStyle(
+  //                 fontSize: 12,
+  //                 color: Colors.grey,
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
+
+  // ✅ MENU UTAMA — GUNAKAN WRAP UNTUK HINDARI OVERFLOW
+  Widget _buildFavoriteMenu() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          "Menu",
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+        const SizedBox(height: 16),
+
+        // 👉 GUNAKAN WRAP, BUKAN GRIDVIEW
+        Wrap(
+          spacing: 16, // jarak horizontal
+          runSpacing: 16, // jarak vertikal
+          children: [
+            _buildMenuItem(Icons.card_giftcard, "Cuti", Colors.blue, () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const PengajuanCuti()),
+              );
+            }),
+            _buildMenuItem(Icons.holiday_village, "Ijin", Colors.orange, () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const IjinScreen()),
+              );
+            }),
+            _buildMenuItem(Icons.card_travel_outlined, "Dinas", Colors.purple, () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Fitur Perjalanan Dinas akan segera hadir')),
+              );
+            }),
+            _buildMenuItem(Icons.calendar_today, "Kalender", Colors.green, () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const KalenderScreen()),
+              );
+            }),
+            _buildMenuItem(Icons.history, "Riwayat", Colors.teal, () {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Fitur Riwayat akan segera hadir')),
+              );
+            }),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ✅ MENU ITEM
+  Widget _buildMenuItem(IconData icon, String label, Color color, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: (MediaQuery.of(context).size.width - 48 - 32) / 3, // (screen - padding - 2 spacing) / 3 kolom
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 28),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              label,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
@@ -154,7 +201,7 @@ class _MainMenuState extends State<MainMenu> {
 // =======================================================================
 class _AttendanceCard extends StatefulWidget {
   final User userData;
-  final String token; // Variabel untuk menerima token
+  final String token;
   const _AttendanceCard({required this.userData, required this.token});
   @override
   State<_AttendanceCard> createState() => _AttendanceCardState();
@@ -162,11 +209,11 @@ class _AttendanceCard extends StatefulWidget {
 
 class _AttendanceCardState extends State<_AttendanceCard> {
   final ApiService _apiService = ApiService();
-  bool _isLoading = true; // Untuk menampilkan loading di awal
+  bool _isLoading = true;
   String _clockInTime = "--:--";
   String _clockOutTime = "--:--";
   bool _isClockedIn = false;
-  String? _attendanceId; // Untuk menyimpan ID absensi hari ini
+  String? _attendanceId;
   final PageController _pageController = PageController();
   int _selectedTab = 0;
   bool _isOnBreak = false;
@@ -181,7 +228,6 @@ class _AttendanceCardState extends State<_AttendanceCard> {
         });
       }
     });
-    // Panggil fungsi untuk cek status saat halaman dibuka
     _fetchAttendanceStatus();
   }
 
@@ -191,25 +237,25 @@ class _AttendanceCardState extends State<_AttendanceCard> {
     super.dispose();
   }
 
-  // Fungsi untuk mengambil status absensi terbaru dari server
   Future<void> _fetchAttendanceStatus() async {
     setState(() {
       _isLoading = true;
     });
 
-    // Simulasi loading
     await Future.delayed(const Duration(seconds: 1));
 
-    // NANTI GANTI DENGAN DATA ASLI DARI API
-    // final status = await _apiService.getAttendanceStatus(widget.token);
-    // if (status != null) { ... }
-
-    // Data dummy untuk sementara
     setState(() {
       _isLoading = false;
-      _isClockedIn = false; // Coba ubah jadi 'true' untuk melihat tampilan setelah clock in
+      _isClockedIn = false;
       _clockInTime = _isClockedIn ? "08:01" : "--:--";
     });
+  }
+
+  // 👇 FUNGSI BARU: Format tanggal hari ini dalam Bahasa Indonesia
+  String _formatTodayDate() {
+    final now = DateTime.now();
+    final formatter = DateFormat('EEE, d MMM y', 'id_ID');
+    return "Hari ini (${formatter.format(now)})";
   }
 
   @override
@@ -322,8 +368,10 @@ class _AttendanceCardState extends State<_AttendanceCard> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text("Hari ini (Jum, 19 Sep 2025)",
-            style: TextStyle(fontWeight: FontWeight.bold)),
+        Text(
+          _formatTodayDate(),
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         const Text("Shift: -",
             style: TextStyle(color: Colors.grey, fontSize: 12)),
         const SizedBox(height: 16),

@@ -5,15 +5,13 @@ import 'package:flutter/material.dart';
 import 'package:project_aplikasi_absensi_hrd_els/screens/Presensi/ConfirmationScreen.dart';
 
 class PhotoScreen extends StatefulWidget {
-  // 1. TAMBAHKAN VARIABEL UNTUK MENYIMPAN TOKEN
   final String userId;
   final String token;
 
-  // 2. PERBAIKI CONSTRUCTOR UNTUK MENYIMPAN TOKEN
   const PhotoScreen({
     super.key,
     required this.userId,
-    required this.token, // Hapus 'String' dan tambahkan 'this.'
+    required this.token,
   });
 
   @override
@@ -34,9 +32,7 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (_controller == null || !_controller!.value.isInitialized) {
-      return;
-    }
+    if (_controller == null || !_controller!.value.isInitialized) return;
     if (state == AppLifecycleState.inactive) {
       _controller?.dispose();
     } else if (state == AppLifecycleState.resumed) {
@@ -46,11 +42,12 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
 
   Future<void> _initializeCamera() async {
     final cameras = await availableCameras();
-    final firstCamera = cameras.firstWhere(
-            (camera) => camera.lensDirection == CameraLensDirection.front);
+    final frontCamera = cameras.firstWhere(
+          (cam) => cam.lensDirection == CameraLensDirection.front,
+    );
 
     _controller = CameraController(
-      firstCamera,
+      frontCamera,
       ResolutionPreset.high,
     );
 
@@ -73,7 +70,7 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
         _takenImage = image;
       });
     } catch (e) {
-      print(e);
+      print("Error saat ambil foto: $e");
     }
   }
 
@@ -83,7 +80,6 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
     });
   }
 
-  // 3. PERBAIKI FUNGSI INI UNTUK MENGIRIM TOKEN ASLI
   void _confirmPicture() {
     if (_takenImage == null) return;
     Navigator.push(
@@ -91,8 +87,8 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
       MaterialPageRoute(
         builder: (context) => ConfirmationScreen(
           imagePath: _takenImage!.path,
-          userId: widget.userId, // Gunakan userId dari widget
-          token: widget.token,     // Gunakan token dari widget
+          userId: widget.userId,
+          token: widget.token,
         ),
       ),
     );
@@ -102,60 +98,107 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.black,
-      body: FutureBuilder<void>(
-        future: _initializeControllerFuture,
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.done && _controller != null) {
-            if (_takenImage == null) {
-              return Stack(
-                alignment: Alignment.center,
-                children: [
-                  CameraPreview(_controller!),
-                  Positioned(
-                    bottom: 30,
-                    child: FloatingActionButton(
-                      onPressed: _takePicture,
-                      child: const Icon(Icons.camera_alt),
-                    ),
-                  ),
-                ],
-              );
-            } else {
-              return Stack(
-                alignment: Alignment.center,
-                children: [
-                  Transform(
-                    alignment: Alignment.center,
-                    transform: Matrix4.rotationY(math.pi),
-                    child: Image.file(File(_takenImage!.path)),
-                  ),
-                  Positioned(
-                    bottom: 30,
-                    left: 0,
-                    right: 0,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                      children: [
-                        FloatingActionButton(
-                          onPressed: _retakePicture,
-                          backgroundColor: Colors.red,
-                          child: const Icon(Icons.close, color: Colors.white),
+      body: SafeArea(
+        child: Container(
+          color: Colors.black,
+          child: FutureBuilder<void>(
+            future: _initializeControllerFuture,
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.done && _controller != null) {
+                if (_takenImage == null) {
+                  return Stack(
+                    children: [
+                      // 👇 CAMERA FULL SCREEN
+                      CameraPreview(_controller!),
+
+                      // 👇 OVERLAY: BINGKAI + TEKS + TOMBOL
+                      Column(
+                        children: [
+                          // Spacer atas (biar bingkai tidak nempel ke atas)
+                          const Spacer(flex: 1),
+
+                          // 👉 BINGKAI WAJAH (FULL WIDTH)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            child: AspectRatio(
+                              aspectRatio: 3 / 4, // Rasio portrait
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.white.withOpacity(0.7),
+                                    width: 2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(20),
+                                ),
+                              ),
+                            ),
+                          ),
+
+                          // 👉 TEKS PETUNJUK
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 24),
+                            child: Text(
+                              "Posisikan wajah Anda di dalam bingkai",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w500,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ),
+
+                          // 👉 TOMBOL KAMERA (DI BAWAH)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 40),
+                            child: FloatingActionButton(
+                              onPressed: _takePicture,
+                              backgroundColor: const Color(0xFFFF6F00), // Orange brand
+                              child: const Icon(Icons.camera_alt, color: Colors.white),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  );
+                } else {
+                  return Stack(
+                    children: [
+                      Transform(
+                        alignment: Alignment.center,
+                        transform: Matrix4.rotationY(math.pi),
+                        child: Image.file(File(_takenImage!.path)),
+                      ),
+                      Positioned(
+                        bottom: 30,
+                        left: 0,
+                        right: 0,
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            FloatingActionButton(
+                              onPressed: _retakePicture,
+                              backgroundColor: Colors.red,
+                              child: const Icon(Icons.close, color: Colors.white),
+                            ),
+                            FloatingActionButton(
+                              onPressed: _confirmPicture,
+                              backgroundColor: Colors.green,
+                              child: const Icon(Icons.check, color: Colors.white),
+                            ),
+                          ],
                         ),
-                        FloatingActionButton(
-                          onPressed: _confirmPicture,
-                          backgroundColor: Colors.green,
-                          child: const Icon(Icons.check, color: Colors.white),
-                        ),
-                      ],
-                    ),
-                  )
-                ],
-              );
-            }
-          } else {
-            return const Center(child: CircularProgressIndicator());
-          }
-        },
+                      ),
+                    ],
+                  );
+                }
+              } else {
+                return const Center(child: CircularProgressIndicator());
+              }
+            },
+          ),
+        ),
       ),
     );
   }
