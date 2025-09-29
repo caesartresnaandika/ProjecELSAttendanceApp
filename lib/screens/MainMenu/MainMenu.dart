@@ -162,7 +162,7 @@ class _AttendanceCardState extends State<_AttendanceCard> {
   final ApiService _apiService = ApiService();
   bool _isLoading = true;
   String _clockInTime = "--:--";
-  String _clockOutTime = "--:--";
+  final String _clockOutTime = "--:--";
   bool _isClockedIn = false;
   String? _attendanceId;
   final PageController _pageController = PageController();

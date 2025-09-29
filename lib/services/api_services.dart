@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 
 class SessionExpiredException implements Exception {
@@ -12,17 +13,24 @@ class SessionExpiredException implements Exception {
 }
 
 class ApiService {
+  // ✅ Perbaikan: Hapus spasi di akhir URL
   final String _baseUrl = "https://erp.els.id";
   final String _basicAuthUsername = "ELS_ELS";
-  final String _basicAuthPassword = "t{\$";
+  final String _basicAuthPassword = r"t{$";
 
   // --- FUNGSI LOGIN ---
   Future<Map<String, dynamic>?> login(String username, String password) async {
     final url = Uri.parse('$_baseUrl/api/login-employee');
+
+    // ✅ TAMBAHKAN LOGIKA BASIC AUTH DI SINI
+    final String basicAuth = 'Basic ${base64Encode(utf8.encode('$_basicAuthUsername:$_basicAuthPassword'))}';
+
     final headers = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
+      'Authorization': basicAuth, // ✅ TAMBAHKAN HEADER INI
     };
+
     final body = jsonEncode({
       'username': username,
       'password': password,
@@ -30,6 +38,7 @@ class ApiService {
 
     print("DEBUG: Mengirim request ke: $url");
     print("DEBUG: Body yang dikirim: $body");
+    print("DEBUG: Headers yang dikirim: $headers"); // Tambahan log untuk verifikasi
 
     try {
       final response = await http.post(url, headers: headers, body: body);
@@ -39,13 +48,20 @@ class ApiService {
 
       if (response.statusCode == 200) {
         final Map<String, dynamic> responseBody = jsonDecode(response.body);
+
+        // Periksa status dari dalam JSON respons
         if (responseBody['status'] == 200) {
           final resultsData = responseBody['results']['data'];
           final user = User.fromJson(resultsData['user']);
-          final token = resultsData['token'];
+          final token = resultsData['token'] as String;
+
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('auth_token', token);
+
           return {'user': user, 'token': token};
         }
       }
+      // Jika status code bukan 200 atau status di body bukan 200
       return null;
     } catch (e) {
       print("Terjadi error koneksi: $e");
@@ -53,87 +69,162 @@ class ApiService {
     }
   }
 
-  // --- FUNGSI REKAM WAKTU YANG DIPERBAIKI ---
-  // --- FUNGSI REKAM WAKTU YANG DIPERBAIKI ---
+
+  // --- FUNGSI DUMP UNTUK DEBUGGING REQUEST PRESENSI ---
+  void dumpAttendanceRequest({
+    required String token,
+    required String type,
+    required String photo,
+    required double latitude,
+    required double longitude,
+    required String userId,
+  }) {
+    final now = DateTime.now().toUtc().add(const Duration(hours: 7));
+    final roundedWib = DateTime(now.year, now.month, now.day, now.hour, now.minute, now.second);
+    final formatter = DateFormat('yyyy-MM-dd HH:mm:ss');
+    final datetime = formatter.format(roundedWib);
+
+
+    final basicAuth = 'Basic ${base64Encode(utf8.encode('$_basicAuthUsername:$_basicAuthPassword'))}';
+
+    print('===== DUMP: POST ATTENDANCE REQUEST =====');
+    print('URL: $_baseUrl/api/attend/add');
+    print('Method: POST');
+    print('Headers:');
+    print('  Authorization: $basicAuth');
+    print('  token: $token');
+    print('Form Data:');
+    print('  employee_id: "$userId"');
+    print('  latitude: "$latitude"');
+    print('  longitude: "$longitude"');
+    print('  type: "$type"');
+    print('  datetime: "$datetime"');
+    print('File:');
+    print('  Field: "photo"');
+    print('  Path: "$photo"');
+
+    final fileExists = File(photo).existsSync();
+    print('  Exists: ${fileExists ? "✅ Yes" : "❌ No"}');
+    print('=========================================');
+  }
+
+  // --- FUNGSI REKAM WAKTU ---
   Future<bool> recordAttendance({
     required String token,
     required String type,
     required String photo,
     required double latitude,
     required double longitude,
+    required String userId,
   }) async {
     final url = Uri.parse('$_baseUrl/api/attend/add');
     var request = http.MultipartRequest('POST', url);
 
-    // --- DEBUG: Print informasi request ---
-    print("DEBUG: URL: $url");
-    print("DEBUG: Token: $token");
-    print("DEBUG: Type: $type");
-    print("DEBUG: Latitude: $latitude");
-    print("DEBUG: Longitude: $longitude");
-    print("DEBUG: Image Path: $photo");
-
-    // --- BAGIAN YANG DIPERBAIKI ---
-    String basicAuth = 'Basic ${base64Encode(utf8.encode('$_basicAuthUsername:$_basicAuthPassword'))}';
-    print("DEBUG: Basic Auth: $basicAuth");
-
-    // 1. Tambahkan SEMUA otentikasi ke HEADERS
-    request.headers['Authorization'] = basicAuth;
-    request.headers['token'] = token; // <-- TOKEN HARUS DI SINI
-
-    // 2. FIELDS hanya untuk data, BUKAN token
+    request.fields['employee_id'] = userId;
     request.fields['latitude'] = latitude.toString();
     request.fields['longitude'] = longitude.toString();
     request.fields['type'] = type;
-    request.fields['datetime'] = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
 
-    // --- DEBUG: Print semua headers dan fields ---
-    print("DEBUG: Request Headers: ${request.headers}");
-    print("DEBUG: Request Fields: ${request.fields}");
+    final now = DateTime.now().toUtc().add(const Duration(hours: 7));
+    final roundedWib = DateTime(now.year, now.month, now.day, now.hour, now.minute);
+    final formatter = DateFormat('yyyy-MM-dd HH:mm:ss');
+    request.fields['datetime'] = formatter.format(roundedWib);
 
-    // Cek apakah file gambar ada
-    File imageFile = File(photo);
+    String basicAuth = 'Basic ${base64Encode(utf8.encode('$_basicAuthUsername:$_basicAuthPassword'))}';
+    request.headers['Authorization'] = basicAuth;
+    request.headers['token'] = token;
+
+    final imageFile = File(photo);
     if (await imageFile.exists()) {
-      print("DEBUG: File image exists, size: ${await imageFile.length()} bytes");
-      request.files.add(await http.MultipartFile.fromPath('photo', photo));
-      print("DEBUG: Photo file added to request");
+      print("DEBUG: File exists, size: ${await imageFile.length()} bytes");
+      final multipartFile = await http.MultipartFile.fromPath('photo', photo);
+      request.files.add(multipartFile);
+      print("DEBUG: File added to request: ${multipartFile.filename}");
     } else {
-      print("DEBUG: ERROR - File image does not exist!");
+      print("DEBUG: File does not exist!");
       return false;
     }
 
+    dumpAttendanceRequest(
+      token: token,
+      type: type,
+      photo: photo,
+      latitude: latitude,
+      longitude: longitude,
+      userId: userId,
+    );
+
     try {
-      print("DEBUG: Sending request...");
+      print("DEBUG: Mengirim request presensi...");
       var streamedResponse = await request.send();
       var response = await http.Response.fromStream(streamedResponse);
 
-      // --- DEBUG: Print response details ---
-      print("DEBUG: Response Status Code: ${response.statusCode}");
-      print("DEBUG: Response Headers: ${response.headers}");
-      print("DEBUG: Full Response Body: ${response.body}");
+      print("DEBUG: Status Code: ${response.statusCode}");
+      print("DEBUG: Response Body: ${response.body}");
 
       final responseBody = jsonDecode(response.body);
 
-      if (responseBody['status'] == 400 && (responseBody['message'] == 'sesi telah kedaluwarsa.' || responseBody['message'] == 'Sesi tidak ditemukan.')) {
-        print("DEBUG: Session expired detected");
+      if (responseBody['status'] == 400 &&
+          (responseBody['message'] == 'sesi telah kedaluwarsa.' ||
+              responseBody['message'] == 'Sesi tidak ditemukan.')) {
         throw SessionExpiredException('Sesi telah kedaluwarsa, silakan login kembali.');
       }
 
       if (response.statusCode == 200 && responseBody['status'] == 200) {
-        print("DEBUG: Attendance recorded successfully");
+        print("✅ presensi berhasil direkam!");
         return true;
       }
 
-      print("DEBUG: Failed to record attendance. Status: ${responseBody['status']}, Message: ${responseBody['message']}");
+      print("❌ Gagal merekam presensi. Pesan: ${responseBody['message']}");
       return false;
 
     } catch (e) {
-      if (e is SessionExpiredException) {
-        print("DEBUG: SessionExpiredException thrown");
-        rethrow;
+      if (e is SessionExpiredException) rethrow;
+      print("ERROR: Gagal mengirim request: $e");
+      return false;
+    }
+  }
+
+  // --- FUNGSI UPLOAD PROFILE IMAGE ---
+  Future<bool> uploadProfileImage({
+    required String token,
+    required String imagePath,
+  }) async {
+    final url = Uri.parse('$_baseUrl/api/user/update-profile-image');
+    var request = http.MultipartRequest('POST', url);
+
+    String basicAuth = 'Basic ${base64Encode(utf8.encode('$_basicAuthUsername:$_basicAuthPassword'))}';
+    request.headers['Authorization'] = basicAuth;
+    request.headers['token'] = token;
+
+    File imageFile = File(imagePath);
+    if (await imageFile.exists()) {
+      request.files.add(await http.MultipartFile.fromPath('photo', imagePath));
+    } else {
+      print("ERROR: File gambar tidak ditemukan di path: $imagePath");
+      return false;
+    }
+
+    try {
+      print("DEBUG: Mengirim request upload foto profil...");
+      var streamedResponse = await request.send();
+      var response = await http.Response.fromStream(streamedResponse);
+
+      print("DEBUG: Status Code: ${response.statusCode}");
+      print("DEBUG: Response Body: ${response.body}");
+
+      final responseBody = jsonDecode(response.body);
+
+      if (response.statusCode == 200 && responseBody['status'] == 200) {
+        print("✅ Foto profil berhasil diupload!");
+        return true;
       }
-      print("DEBUG: Error during request: $e");
-      print("DEBUG: Error type: ${e.runtimeType}");
+
+      print("❌ Gagal upload foto profil. Pesan: ${responseBody['message']}");
+      return false;
+
+    } catch (e) {
+      print("ERROR: Gagal mengirim request upload foto: $e");
       return false;
     }
   }

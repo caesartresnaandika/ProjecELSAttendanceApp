@@ -3,7 +3,7 @@ import 'package:intl/intl.dart';
 import 'package:project_aplikasi_absensi_hrd_els/screens/Cuti/HistoryCuti.dart'; // 👈 Import halaman riwayat
 
 class PengajuanCuti extends StatefulWidget {
-  const PengajuanCuti({Key? key}) : super(key: key);
+  const PengajuanCuti({super.key});
 
   @override
   _PengajuanCutiState createState() => _PengajuanCutiState();
@@ -128,7 +128,7 @@ class _PengajuanCutiState extends State<PengajuanCuti> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: _leaveType,
+                      initialValue: _leaveType,
                       decoration: InputDecoration(
                         contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                         border: OutlineInputBorder(

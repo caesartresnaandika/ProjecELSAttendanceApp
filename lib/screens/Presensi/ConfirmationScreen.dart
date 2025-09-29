@@ -91,6 +91,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
         photo: widget.imagePath,
         latitude: _position!.latitude,
         longitude: _position!.longitude,
+        userId: widget.userId,
       );
 
       if (mounted) setState(() => _isLoading = false);
@@ -120,6 +121,7 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
       }
     }
   }
+
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
@@ -137,10 +139,9 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
             Text("Pastikan data di bawah ini sudah benar sebelum konfirmasi."),
             const SizedBox(height: 24),
             // Menampilkan foto yang diambil
-          // Wadah untuk mengatur ukuran dan posisi bingkai gambar
             SizedBox(
-              height: 240, // Tinggi bingkai
-              width: 180,  // Lebar bingkai (proporsi ~4x6)
+              height: 240,
+              width: 180,
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(12),
                 child: Transform(
@@ -148,7 +149,6 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
                   transform: Matrix4.rotationY(math.pi),
                   child: Image.file(
                     File(widget.imagePath),
-                    // BoxFit.contain akan memastikan seluruh gambar muat di dalam bingkai tanpa terpotong
                     fit: BoxFit.contain,
                   ),
                 ),
@@ -191,4 +191,3 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
     );
   }
 }
-

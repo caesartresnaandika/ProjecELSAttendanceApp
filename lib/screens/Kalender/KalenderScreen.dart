@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 class KalenderScreen extends StatefulWidget {
-  const KalenderScreen({Key? key}) : super(key: key);
+  const KalenderScreen({super.key});
 
   @override
   _KalenderScreenState createState() => _KalenderScreenState();
@@ -406,7 +406,7 @@ class _KalenderScreenState extends State<KalenderScreen> with TickerProviderStat
               children: [
                 // Dropdown Bulan
                 DropdownButtonFormField<int>(
-                  value: selectedMonth,
+                  initialValue: selectedMonth,
                   decoration: const InputDecoration(labelText: "Bulan"),
                   items: List.generate(12, (index) {
                     return DropdownMenuItem(
@@ -421,7 +421,7 @@ class _KalenderScreenState extends State<KalenderScreen> with TickerProviderStat
                 const SizedBox(height: 16),
                 // Dropdown Tahun
                 DropdownButtonFormField<int>(
-                  value: selectedYear,
+                  initialValue: selectedYear,
                   decoration: const InputDecoration(labelText: "Tahun"),
                   items: years.map((year) {
                     return DropdownMenuItem(

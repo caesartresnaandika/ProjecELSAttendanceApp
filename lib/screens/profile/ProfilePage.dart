@@ -1,16 +1,113 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:project_aplikasi_absensi_hrd_els/models/user_model.dart';
 import 'package:project_aplikasi_absensi_hrd_els/screens/SignIn/SignInPage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:image_picker/image_picker.dart'; // ← Untuk ImagePicker
+import 'package:fluttertoast/fluttertoast.dart';
 
-class ProfilePage extends StatelessWidget {
+import '../../services/api_services.dart'; // ← Untuk Fluttertoast
+
+class ProfilePage extends StatefulWidget {
   final User userData;
   const ProfilePage({super.key, required this.userData});
 
   @override
+  State<ProfilePage> createState() => _ProfilePageState();
+}
+
+class _ProfilePageState extends State<ProfilePage> {
+  File? _selectedImage;
+  String? _imageUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    // Ambil URL foto dari user data
+    _imageUrl = widget.userData.imageUrl ?? 'https://via.placeholder.com/150';
+  }
+
+  // Fungsi untuk memilih gambar
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery);
+
+    if (pickedFile != null) {
+      setState(() {
+        _selectedImage = File(pickedFile.path);
+      });
+
+      // Upload ke server
+      await _uploadImage(_selectedImage!.path);
+    }
+  }
+
+  // Fungsi upload gambar
+  Future<void> _uploadImage(String imagePath) async {
+    // ✅ AMBIL TOKEN DARI SHARED PREFERENCES
+    final prefs = await SharedPreferences.getInstance();
+    final String? token = prefs.getString('auth_token');
+
+    if (token == null) {
+      Fluttertoast.showToast(
+        msg: "Token tidak ditemukan. Silakan login ulang.",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.CENTER,
+        timeInSecForIosWeb: 1,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
+      return;
+    }
+
+    final apiService = ApiService();
+
+    try {
+      final success = await apiService.uploadProfileImage(
+        token: token, // ← Gunakan token dari SharedPreferences
+        imagePath: imagePath,
+      );
+
+      if (success) {
+        Fluttertoast.showToast(
+          msg: "Foto profil berhasil diperbarui!",
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.CENTER,
+          timeInSecForIosWeb: 1,
+          backgroundColor: Colors.green,
+          textColor: Colors.white,
+        );
+
+        setState(() {
+          _imageUrl = imagePath;
+        });
+      } else {
+        Fluttertoast.showToast(
+          msg: "Gagal upload foto profil.",
+          toastLength: Toast.LENGTH_SHORT,
+          gravity: ToastGravity.CENTER,
+          timeInSecForIosWeb: 1,
+          backgroundColor: Colors.red,
+          textColor: Colors.white,
+        );
+      }
+    } catch (e) {
+      Fluttertoast.showToast(
+        msg: "Error: $e",
+        toastLength: Toast.LENGTH_SHORT,
+        gravity: ToastGravity.CENTER,
+        timeInSecForIosWeb: 1,
+        backgroundColor: Colors.red,
+        textColor: Colors.white,
+      );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5), // Background soft
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
         title: const Text(
           'Profil Saya',
@@ -26,11 +123,72 @@ class ProfilePage extends StatelessWidget {
       ),
       body: ListView(
         children: [
-          // 👉 HEADER PROFIL
-          _buildProfileHeader(
-            name: userData.name,
-            position: userData.position, email: '',
-            // email: userData.email ?? "email@example.com",
+            // 👉 HEADER PROFIL — MODIFIKASI UNTUK TAMPILKAN FOTO
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.05),
+                  blurRadius: 15,
+                  offset: const Offset(0, 5),
+                ),
+              ],
+            ),
+            child: Row(
+              children: [
+                GestureDetector( // Tambahkan gesture detector untuk tap upload
+                  onTap: _pickImage,
+                  child: CircleAvatar(
+                    radius: 30,
+                    backgroundImage: _selectedImage != null
+                        ? FileImage(_selectedImage!)
+                        : (_imageUrl != null && _imageUrl != 'https://via.placeholder.com/150')
+                        ? NetworkImage(_imageUrl!) as ImageProvider
+                        : const AssetImage('assets/default_avatar.png'),
+                    child: _selectedImage == null && _imageUrl == 'https://via.placeholder.com/150'
+                        ? const Icon(Icons.person, size: 60, color: Colors.grey)
+                        : null,
+                  ),
+                ),
+                const SizedBox(width: 15),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        "Halo, ${widget.userData.name}",
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        widget.userData.position,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 1),
+                      Text(
+                        widget.userData.email ?? 'email@example.com',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.grey,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
 
           const SizedBox(height: 24),
@@ -103,8 +261,8 @@ class ProfilePage extends StatelessWidget {
                   style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red.shade50, // Background soft
-                  foregroundColor: Colors.red.shade700, // Text merah
+                  backgroundColor: Colors.red.shade50,
+                  foregroundColor: Colors.red.shade700,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -115,7 +273,7 @@ class ProfilePage extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: 40), // Padding bawah
+          const SizedBox(height: 40),
         ],
       ),
     );
@@ -136,7 +294,7 @@ class ProfilePage extends StatelessWidget {
             ),
             TextButton(
               style: TextButton.styleFrom(
-                backgroundColor: const Color(0xFFFF6F00), // Orange brand
+                backgroundColor: const Color(0xFFFF6F00),
                 foregroundColor: Colors.white,
               ),
               child: const Text('Logout'),
@@ -157,80 +315,6 @@ class ProfilePage extends StatelessWidget {
             (Route<dynamic> route) => false,
       );
     }
-  }
-
-  // ✅ Method Helper: Header Profil
-  Widget _buildProfileHeader({
-    required String name,
-    required String position,
-    required String email,
-  }) {
-    final String initials = name.isNotEmpty ? name.substring(0, 1).toUpperCase() : "?";
-
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundColor: const Color(0xFFFF6F00).withOpacity(0.15),
-            child: Text(
-              initials,
-              style: const TextStyle(
-                color: Color(0xFFFF6F00),
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-          const SizedBox(width: 15),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  "Halo, $name",
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  position,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    color: Colors.grey,
-                  ),
-                ),
-                const SizedBox(height: 1),
-                Text(
-                  email,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   // ✅ Method Helper: Section Header

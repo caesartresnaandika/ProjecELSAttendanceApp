@@ -1,11 +1,12 @@
-// Di dalam file: lib/models/user_model.dart
+// lib/models/user_model.dart
 
 class User {
   final String id;
   final String name;
   final String username;
-  final String? imageUrl; // Tanda tanya (?) berarti boleh null
+  final String? imageUrl;
   final String position;
+  final String? email;
 
   User({
     required this.id,
@@ -13,17 +14,18 @@ class User {
     required this.username,
     required this.position,
     this.imageUrl,
+    this.email,
   });
 
-  // Factory constructor untuk membuat instance User dari JSON
+  // ✅ BLOK INI YANG DIPERBAIKI
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
-      // Pastikan semua key di sini sama persis dengan di JSON
-      id: json['sales_user_id'],
-      name: json['sales_user_name'],
-      username: json['sales_user_username'],
-      imageUrl: json['sales_user_image'],
-      position: json['sales_group_id'],
+      id: json['employee_user_id'] as String,
+      name: json['employee_user_name'] as String,
+      username: json['employee_user_username'] as String,
+      imageUrl: json['employee_user_image'] as String?,
+      position: json['employee_group_id'] as String,
+      email: json['employee_user_email'] as String?, // Tetap aman karena nullable
     );
   }
 }

@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 // import 'package:project_aplikasi_absensi_hrd_els/screens/Ijin/HistoryIjin.dart';
 
 class IjinScreen extends StatefulWidget {
-  const IjinScreen({Key? key}) : super(key: key);
+  const IjinScreen({super.key});
 
   @override
   _IjinScreenState createState() => _IjinScreenState();
@@ -131,7 +131,7 @@ class _IjinScreenState extends State<IjinScreen> {
                     ),
                     const SizedBox(height: 8),
                     DropdownButtonFormField<String>(
-                      value: _permissionType,
+                      initialValue: _permissionType,
                       decoration: InputDecoration(
                         contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
                         border: OutlineInputBorder(
