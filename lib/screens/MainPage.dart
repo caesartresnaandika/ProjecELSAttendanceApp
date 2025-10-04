@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:project_aplikasi_absensi_hrd_els/models/user_model.dart';
 import 'MainMenu/MainMenu.dart';
-import 'Profile/ProfilePage.dart'; // Asumsi kamu sudah punya halaman ini
-import 'Kalender/KalenderScreen.dart'; // Import halaman Kalender
+import 'Profile/ProfilePage.dart';
+import 'Kalender/KalenderScreen.dart';
 class MainPage extends StatefulWidget {
   final User userData;
   final String token;

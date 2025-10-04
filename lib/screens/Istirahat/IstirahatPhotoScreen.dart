@@ -1,28 +1,26 @@
+// lib/screens/Istirahat/IstirahatPhotoScreen.dart
+
 import 'dart:io';
 import 'dart:math' as math;
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:project_aplikasi_absensi_hrd_els/screens/Presensi/ConfirmationScreen.dart';
+import 'package:project_aplikasi_absensi_hrd_els/screens/Istirahat/IstirahatConfirmation.dart';
 
-class PhotoScreen extends StatefulWidget {
-  final String userId;
-  final String token;
-  final String attendanceType; // ✅ TAMBAHKAN INI
+class IstirahatPhotoScreen extends StatefulWidget {
+  final bool isRestOut; // true = selesai istirahat, false = mulai istirahat
 
-  const PhotoScreen({
+  const IstirahatPhotoScreen({
     Key? key,
-    required this.userId,
-    required this.token,
-    required this.attendanceType, // ✅ TAMBAHKAN INI
+    required this.isRestOut,
   }) : super(key: key);
 
   @override
-  State<PhotoScreen> createState() => _PhotoScreenState();
+  State<IstirahatPhotoScreen> createState() => _IstirahatPhotoScreenState();
 }
 
-class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
+class _IstirahatPhotoScreenState extends State<IstirahatPhotoScreen> with WidgetsBindingObserver {
   CameraController? _controller;
   Future<void>? _initializeControllerFuture;
   XFile? _takenImage;
@@ -50,20 +48,19 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
       final cameras = await availableCameras();
       final frontCamera = cameras.firstWhere(
             (cam) => cam.lensDirection == CameraLensDirection.front,
-        orElse: () => cameras.first, // Fallback jika tidak ada kamera depan
+        orElse: () => cameras.first,
       );
 
       _controller = CameraController(
         frontCamera,
         ResolutionPreset.high,
-        enableAudio: false, // Matikan audio untuk foto
+        enableAudio: false,
       );
 
       _initializeControllerFuture = _controller!.initialize();
       if (mounted) setState(() {});
     } catch (e) {
       print("Error initializing camera: $e");
-      // Tampilkan pesan error ke user jika perlu
     }
   }
 
@@ -84,26 +81,20 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
       final image = await _controller!.takePicture();
       final imageBytes = await image.readAsBytes();
 
-      // 1. Simpan ke direktori internal aplikasi (PENTING untuk upload)
       final directory = await getApplicationDocumentsDirectory();
-      final fileName = 'presensi_${DateTime.now().millisecondsSinceEpoch}.jpg';
+      final fileName = 'istirahat_${DateTime.now().millisecondsSinceEpoch}.jpg';
       final localPath = '${directory.path}/$fileName';
       final localFile = File(localPath);
       await localFile.writeAsBytes(imageBytes);
 
-      // 2. Simpan ke galeri publik (Bonus untuk user)
       try {
-
         final result = await ImageGallerySaverPlus.saveImage(
           imageBytes,
           quality: 85,
           name: fileName,
         );
-
         if (result['isSuccess']) {
           print("✅ Foto berhasil disimpan ke galeri: ${result['filePath']}");
-        } else {
-          print("⚠️ Gagal menyimpan ke galeri. Hasil: $result");
         }
       } catch (e) {
         print("❌ Error saat simpan ke galeri: $e");
@@ -112,7 +103,7 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
       if (mounted) {
         setState(() {
           _takenImage = image;
-          _savedImagePath = localPath; // Gunakan path internal untuk dikirim
+          _savedImagePath = localPath;
         });
       }
     } catch (e, stack) {
@@ -128,7 +119,7 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
     if (_savedImagePath != null) {
       final file = File(_savedImagePath!);
       if (await file.exists()) {
-        await file.delete(); // Hanya hapus salinan dari direktori internal
+        await file.delete();
       }
     }
     setState(() {
@@ -139,19 +130,21 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
 
   void _confirmPicture() {
     if (_savedImagePath == null) return;
-    Navigator.pushReplacement( // Gunakan pushReplacement agar tidak bisa kembali ke halaman foto
+    Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => ConfirmationScreen(
+        builder: (context) => IstirahatConfirmation(
           imagePath: _savedImagePath!,
-          userId: widget.userId,
-          token: widget.token,
-          attendanceType: widget.attendanceType, // ✅ TAMBAHKAN INI
+          isRestOut: widget.isRestOut,
         ),
       ),
-    );
+    ).then((result) {
+      // Jika IstirahatConfirmation mengembalikan true, pop ke MainMenu
+      if (result == true) {
+        Navigator.pop(context, true); // ✅ Kirim true ke MainMenu
+      }
+    });
   }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -162,12 +155,9 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.done && _controller != null && _controller!.value.isInitialized) {
               if (_takenImage == null) {
-                // Tampilan Ambil Foto
                 return Stack(
                   alignment: Alignment.center,
                   children: [
-                    // 👇👇👇 BAGIAN YANG DIPERBAIKI 👇👇👇
-                    // Camera Preview Fullscreen
                     Center(
                       child: Transform.scale(
                         scale: 1 / (_controller!.value.aspectRatio * MediaQuery.of(context).size.aspectRatio),
@@ -175,14 +165,10 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
                         child: CameraPreview(_controller!),
                       ),
                     ),
-                    // 👆👆👆 AKHIR DARI BAGIAN YANG DIPERBAIKI 👆👆👆
-
-                    // UI Overlay (bingkai, teks, tombol)
                     Column(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const SizedBox.shrink(), // Spacer atas
-                        // Bingkai Wajah
+                        const SizedBox.shrink(),
                         Container(
                           width: MediaQuery.of(context).size.width * 0.8,
                           height: (MediaQuery.of(context).size.width * 0.8) * (4/3),
@@ -191,10 +177,9 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
                               color: Colors.white.withOpacity(0.8),
                               width: 3,
                             ),
-                            borderRadius: BorderRadius.circular(200), // Oval
+                            borderRadius: BorderRadius.circular(200),
                           ),
                         ),
-                        // Teks Petunjuk dan Tombol
                         Column(
                           children: [
                             const Padding(
@@ -225,11 +210,9 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
                   ],
                 );
               } else {
-                // Tampilan Konfirmasi Foto
                 return Stack(
                   fit: StackFit.expand,
                   children: [
-                    // Tampilkan gambar yang sudah diambil dan di-flip horizontal
                     Transform(
                       alignment: Alignment.center,
                       transform: Matrix4.rotationY(math.pi),
@@ -238,7 +221,6 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
                         fit: BoxFit.cover,
                       ),
                     ),
-                    // Tombol Retake dan Confirm
                     Positioned(
                       bottom: 40,
                       left: 0,
@@ -263,7 +245,6 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
                 );
               }
             } else {
-              // Loading indicator
               return const Center(child: CircularProgressIndicator());
             }
           },
@@ -271,5 +252,4 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
       ),
     );
   }
-
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../services/api_services.dart';
 import '../../models/user_model.dart';
+import '../../services/session_manager.dart';
 import '../MainPage.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class SignInPage extends StatelessWidget {
   const SignInPage({super.key});
@@ -11,7 +11,7 @@ class SignInPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return const Scaffold(
       body: Center(
-        child: SingleChildScrollView( // Tambahkan ini agar bisa di-scroll di layar kecil
+        child: SingleChildScrollView(
           padding: EdgeInsets.all(16.0),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -70,7 +70,6 @@ class __FormContentState extends State<_FormContent> {
     super.dispose();
   }
 
-  // 2. MODIFIKASI HANDLE LOGIN UNTUK API ASLI
   Future<void> _handleLogin() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
@@ -78,44 +77,51 @@ class __FormContentState extends State<_FormContent> {
       _isLoading = true;
     });
 
-    final response = await _apiService.login(
-      _usernameController.text, // Gunakan username
-      _passwordController.text,
-    );
-
-    setState(() {
-      _isLoading = false;
-    });
-
-    if (response != null && mounted) {
-      final User user = response['user']; // Dapatkan objek User
-      final String token = response['token']; // Dapatkan token
-
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setString('user_token', token);
-      await prefs.setString('user_name', user.username);
-      await prefs.setString('user_id', user.id);
-
-      // TODO: Simpan token ini untuk request API selanjutnya
-
-      // 3. KIRIM OBJEK USER KE MAINMENU
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (context) => MainPage(userData: user, token: token), // Kirim objek User
-        ),
+    try {
+      final response = await _apiService.login(
+        _usernameController.text,
+        _passwordController.text,
       );
-    } else if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: Colors.red,
-          content: Text('Login Gagal! Username atau password salah.'),
-        ),
-      );
+
+      if (response != null && mounted) {
+        final User user = response['user'];
+        final String token = response['token'];
+
+        // Cukup panggil satu fungsi ini untuk menyimpan semuanya
+        await SessionManager.saveSession(token, user);
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => MainPage(userData: user, token: token),
+          ),
+        );
+      } else if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.red,
+            content: Text('Login Gagal! Username atau password salah.'),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            backgroundColor: Colors.red,
+            content: Text('Terjadi error: ${e.toString()}'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
     }
   }
 
-  // --- GANTI SELURUH METHOD build DENGAN INI ---
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -140,7 +146,6 @@ class __FormContentState extends State<_FormContent> {
               ),
             ),
             _gap(),
-            // KODE LENGKAP UNTUK TEXTFORMFIELD PASSWORD
             TextFormField(
               controller: _passwordController,
               validator: (value) {
@@ -165,7 +170,6 @@ class __FormContentState extends State<_FormContent> {
               ),
             ),
             _gap(),
-            // KODE LENGKAP UNTUK CHECKBOX
             CheckboxListTile(
               value: _rememberMe,
               onChanged: (value) {
@@ -184,7 +188,7 @@ class __FormContentState extends State<_FormContent> {
               width: double.infinity,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.orange, // Ganti warna agar konsisten
+                  backgroundColor: Colors.orange,
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                   padding: const EdgeInsets.symmetric(vertical: 12),
