@@ -1,39 +1,129 @@
+// lib/screens/Ijin/IjinScreen.dart
+
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-
-// 👇 Ganti dengan halaman riwayat ijinmu nanti
-// import 'package:project_aplikasi_absensi_hrd_els/screens/Ijin/HistoryIjin.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:project_aplikasi_absensi_hrd_els/services/api_services.dart';
+import 'package:project_aplikasi_absensi_hrd_els/services/session_manager.dart';
 
 class IjinScreen extends StatefulWidget {
   const IjinScreen({super.key});
 
   @override
-  _IjinScreenState createState() => _IjinScreenState();
+  State<IjinScreen> createState() => _IjinScreenState();
 }
 
 class _IjinScreenState extends State<IjinScreen> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _dateController = TextEditingController();
-  final TextEditingController _timeController = TextEditingController();
-  final TextEditingController _reasonController = TextEditingController();
+  final _apiService = ApiService();
 
+  // State
+  final _reasonController = TextEditingController();
+  String? _selectedSubType = 'Ijin Telat';
   DateTime? _selectedDate;
   TimeOfDay? _selectedTime;
-  String _permissionType = 'Ijin Telat';
+  File? _pickedFile;
   bool _isLoading = false;
+
+  final List<String> _ijinSubTypes = ['Ijin Telat', 'Ijin Pulang Cepat', 'Ijin Tidak Masuk', 'Ijin Lainnya'];
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectDate(BuildContext context) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: _selectedDate ?? DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() => _selectedDate = picked);
+    }
+  }
+
+  Future<void> _selectTime(BuildContext context) async {
+    final TimeOfDay? picked = await showTimePicker(
+      context: context,
+      initialTime: _selectedTime ?? TimeOfDay.now(),
+    );
+    if (picked != null) {
+      setState(() => _selectedTime = picked);
+    }
+  }
+
+  Future<void> _pickFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+    );
+    if (result != null) {
+      setState(() => _pickedFile = File(result.files.single.path!));
+    }
+  }
+
+  Future<void> _submitIjin() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_selectedDate == null || _pickedFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Harap lengkapi tanggal dan lampiran file bukti.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final sessionData = await SessionManager.getSession();
+      final token = sessionData?['token'];
+      final userId = sessionData?['user']?.id;
+      if (token == null || userId == null) throw Exception("Sesi tidak valid.");
+
+      String formattedTime = _selectedTime != null ? _selectedTime!.format(context) : "seharian";
+      String description = "Waktu: $formattedTime. Alasan: ${_reasonController.text}";
+
+      final success = await _apiService.submitLeave(
+        token: token,
+        userId: userId,
+        type: 'ijin',
+        subType: _selectedSubType!,
+        description: description,
+        startDate: DateFormat('yyyy-MM-dd').format(_selectedDate!),
+        endDate: DateFormat('yyyy-MM-dd').format(_selectedDate!), // Untuk ijin, tanggal mulai & selesai sama
+        startTime: _selectedTime != null ? "${_selectedTime!.hour.toString().padLeft(2, '0')}:${_selectedTime!.minute.toString().padLeft(2, '0')}:00" : "00:00:00",
+        endTime: "23:59:59",
+        photoPath: _pickedFile!.path,
+      );
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pengajuan ijin berhasil dikirim!'), backgroundColor: Colors.green));
+          Navigator.pop(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal mengirim pengajuan.'), backgroundColor: Colors.red));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi error: ${e.toString()}'), backgroundColor: Colors.red));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5), // Background soft
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        title: const Text(
-          'Pengajuan Ijin',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
+        title: const Text('Pengajuan Ijin', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
         backgroundColor: Colors.white,
         elevation: 1,
         centerTitle: true,
@@ -42,334 +132,200 @@ class _IjinScreenState extends State<IjinScreen> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFF6F00),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.history, color: Colors.white, size: 24),
-                ),
-                title: const Text(
-                  "Lihat Riwayat Ijin",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                subtitle: const Text(
-                  "Cek status pengajuan sebelumnya",
-                  style: TextStyle(color: Colors.grey),
-                ),
-                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
-                onTap: () {
-                  // 👇 Ganti dengan halaman riwayat ijinmu
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text("Fitur Riwayat Ijin akan segera hadir")),
-                  );
-                  // Navigator.push(context, MaterialPageRoute(builder: (context) => HistoryIjin()));
-                },
-              ),
-            ),
-
-            const SizedBox(height: 20), // Padding bawah
-
-            // 👉 CARD FORM UTAMA
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 15,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 👉 JUDUL
-                    const Text(
-                      "Ajukan Ijin",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // 👉 JENIS IJIN
-                    const Text(
-                      "Jenis Ijin",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      initialValue: _permissionType,
-                      decoration: InputDecoration(
-                        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFFF0F0F0),
-                        hintStyle: const TextStyle(color: Colors.grey),
-                      ),
-                      items: ['Ijin Telat', 'Pulang Cepat', 'Tidak Masuk', 'Ijin Lainnya']
-                          .map((type) => DropdownMenuItem(
-                        value: type,
-                        child: Text(type),
-                      ))
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _permissionType = value!;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 20),
-
-                    // 👉 TANGGAL
-                    const Text(
-                      "Tanggal",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: () => _selectDate(context),
-                      child: AbsorbPointer(
-                        child: TextFormField(
-                          controller: _dateController,
-                          decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF0F0F0),
-                            suffixIcon: const Icon(Icons.calendar_today, color: Colors.orange),
-                            hintText: "Pilih tanggal",
-                            hintStyle: const TextStyle(color: Colors.grey),
-                          ),
-                          readOnly: true,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // 👉 WAKTU (Opsional)
-                    const Text(
-                      "Waktu (jika diperlukan)",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: () => _selectTime(context),
-                      child: AbsorbPointer(
-                        child: TextFormField(
-                          controller: _timeController,
-                          decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF0F0F0),
-                            suffixIcon: const Icon(Icons.access_time, color: Colors.orange),
-                            hintText: "Pilih waktu",
-                            hintStyle: const TextStyle(color: Colors.grey),
-                          ),
-                          readOnly: true,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // 👉 ALASAN IJIN
-                    const Text(
-                      "Alasan Ijin",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _reasonController,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFFF0F0F0),
-                        hintText: "Tulis alasan Anda...",
-                        hintStyle: const TextStyle(color: Colors.grey),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Masukkan alasan ijin';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 32),
-
-                    // 👉 TOMBOL AJUKAN
-                    _isLoading
-                        ? const Center(child: CircularProgressIndicator())
-                        : SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _submitPermissionRequest,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF6F00), // Orange brand els.id
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: const Text(
-                          "AJUKAN IJIN",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 32),
-
+            // Tombol Riwayat
+            _buildHistoryButton(),
+            const SizedBox(height: 24),
+            // Form Card
+            _buildFormCard(),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _selectDate(BuildContext context) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(DateTime.now().year + 1),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.light().copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFFFF6F00), // Orange brand
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
+  // --- WIDGET BUILDERS ---
 
-    if (picked != null) {
-      setState(() {
-        _selectedDate = picked;
-        _dateController.text = DateFormat('dd MMM yyyy').format(picked);
-      });
-    }
+  Widget _buildHistoryButton() {
+    return InkWell(
+      onTap: () {
+        // TODO: Arahkan ke halaman riwayat ijin jika sudah dibuat
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Halaman riwayat belum tersedia')));
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+        child: const Row(
+          children: [
+            Icon(Icons.history, color: Colors.orange, size: 28),
+            SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Lihat Riwayat Ijin", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text("Cek status pengajuan sebelumnya", style: TextStyle(color: Colors.grey)),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+          ],
+        ),
+      ),
+    );
   }
 
-  Future<void> _selectTime(BuildContext context) async {
-    final TimeOfDay? picked = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.now(),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.light().copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFFFF6F00), // Orange brand
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
+  Widget _buildFormCard() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Ajukan Ijin", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange)),
+            const SizedBox(height: 24),
 
-    if (picked != null) {
-      setState(() {
-        _selectedTime = picked;
-        _timeController.text = picked.format(context);
-      });
-    }
+            const Text("Jenis Ijin", style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _selectedSubType,
+              items: _ijinSubTypes.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
+              onChanged: (value) => setState(() => _selectedSubType = value),
+              decoration: _inputDecoration(),
+            ),
+            const SizedBox(height: 16),
+
+            // --- Tanggal dan Waktu ---
+            Row(
+              children: [
+                Expanded(child: _buildDatePickerField()),
+                const SizedBox(width: 16),
+                Expanded(child: _buildTimePickerField()),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            const Text("Alasan Ijin", style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _reasonController,
+              decoration: _inputDecoration(hint: "Tulis alasan Anda..."),
+              maxLines: 3,
+              validator: (v) => v!.isEmpty ? 'Alasan tidak boleh kosong' : null,
+            ),
+            const SizedBox(height: 16),
+
+            // --- Lampiran File ---
+            _buildFilePickerField(),
+            const SizedBox(height: 24),
+
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _submitIjin,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _isLoading
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                    : const Text("AJUKAN IJIN", style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
-  void _submitPermissionRequest() {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
-
-      // Simulasi proses loading
-      Future.delayed(const Duration(seconds: 2), () {
-        setState(() {
-          _isLoading = false;
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pengajuan ijin berhasil dikirim!'),
-            backgroundColor: Colors.green,
+  Widget _buildDatePickerField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Tanggal", style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: () => _selectDate(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(_selectedDate == null ? 'Pilih tanggal' : DateFormat('dd/MM/yyyy').format(_selectedDate!)),
+                const Icon(Icons.calendar_today, color: Colors.orange, size: 20),
+              ],
+            ),
           ),
-        );
+        ),
+      ],
+    );
+  }
 
-        // Reset form
-        _formKey.currentState!.reset();
-        _dateController.clear();
-        _timeController.clear();
-        _reasonController.clear();
-        setState(() {
-          _permissionType = 'Ijin Telat';
-        });
-      });
-    }
+  Widget _buildTimePickerField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Waktu", style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: () => _selectTime(context),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(_selectedTime == null ? 'Pilih waktu' : _selectedTime!.format(context)),
+                const Icon(Icons.access_time, color: Colors.orange, size: 20),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFilePickerField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Lampiran Bukti", style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: _pickFile,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
+            child: Row(
+              children: [
+                const Icon(Icons.attach_file, color: Colors.orange),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _pickedFile == null ? 'Pilih file (PDF, JPG, PNG)' : _pickedFile!.path.split('/').last,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _inputDecoration({String? hint}) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.grey[100],
+      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+    );
   }
 }

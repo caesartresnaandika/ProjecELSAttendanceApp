@@ -9,13 +9,13 @@ import 'package:project_aplikasi_absensi_hrd_els/screens/Presensi/ConfirmationSc
 class PhotoScreen extends StatefulWidget {
   final String userId;
   final String token;
-  final String attendanceType; // ✅ TAMBAHKAN INI
+  final String attendanceType;
 
   const PhotoScreen({
     Key? key,
     required this.userId,
     required this.token,
-    required this.attendanceType, // ✅ TAMBAHKAN INI
+    required this.attendanceType,
   }) : super(key: key);
 
   @override
@@ -137,19 +137,41 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
     });
   }
 
-  void _confirmPicture() {
+  void _confirmPicture() async {
     if (_savedImagePath == null) return;
-    Navigator.pushReplacement( // Gunakan pushReplacement agar tidak bisa kembali ke halaman foto
-      context,
-      MaterialPageRoute(
-        builder: (context) => ConfirmationScreen(
-          imagePath: _savedImagePath!,
-          userId: widget.userId,
-          token: widget.token,
-          attendanceType: widget.attendanceType, // ✅ TAMBAHKAN INI
+
+    try {
+      // Gunakan await untuk menunggu hasil dari ConfirmationScreen
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ConfirmationScreen(
+            imagePath: _savedImagePath!,
+            userId: widget.userId,
+            token: widget.token,
+            attendanceType: widget.attendanceType,
+          ),
         ),
-      ),
-    );
+      );
+
+      // Debug: print hasil untuk memastikan
+      print('🔄 Hasil dari ConfirmationScreen: $result');
+
+      // Jika konfirmasi berhasil, kembalikan hasil ke MainMenu
+      if (result == true && mounted) {
+        print('✅ Mengirim refresh signal ke MainMenu');
+        Navigator.pop(context, true); // Kembali ke MainMenu dengan refresh signal
+      } else {
+        print('❌ Tidak ada refresh signal dari ConfirmationScreen');
+      }
+    } catch (e) {
+      print('❌ Error dalam _confirmPicture: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -271,5 +293,4 @@ class _PhotoScreenState extends State<PhotoScreen> with WidgetsBindingObserver {
       ),
     );
   }
-
 }

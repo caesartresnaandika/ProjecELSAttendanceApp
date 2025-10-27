@@ -1,37 +1,130 @@
+// lib/screens/Cuti/PengajuanCuti.dart
+
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'package:project_aplikasi_absensi_hrd_els/screens/Cuti/HistoryCuti.dart'; // 👈 Import halaman riwayat
+import 'package:file_picker/file_picker.dart';
+import 'package:project_aplikasi_absensi_hrd_els/services/api_services.dart';
+import 'package:project_aplikasi_absensi_hrd_els/services/session_manager.dart';
+import 'package:project_aplikasi_absensi_hrd_els/screens/Cuti/HistoryCuti.dart';
 
 class PengajuanCuti extends StatefulWidget {
   const PengajuanCuti({super.key});
 
   @override
-  _PengajuanCutiState createState() => _PengajuanCutiState();
+  State<PengajuanCuti> createState() => _PengajuanCutiState();
+
 }
 
 class _PengajuanCutiState extends State<PengajuanCuti> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _startDateController = TextEditingController();
-  final TextEditingController _endDateController = TextEditingController();
-  final TextEditingController _reasonController = TextEditingController();
+  final _apiService = ApiService();
 
-  String _leaveType = 'Tahunan';
+  // State
+  final _reasonController = TextEditingController();
+  String? _selectedSubType = 'Cuti Tahunan'; // Nilai default dropdown
   DateTime? _startDate;
   DateTime? _endDate;
+  File? _pickedFile;
   bool _isLoading = false;
+
+  final List<String> _cutiSubTypes = ['Cuti Tahunan', 'Cuti Sakit', 'Cuti Melahirkan', 'Cuti Alasan Penting'];
+
+  @override
+  void dispose() {
+    _reasonController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _selectDate(BuildContext context, {required bool isStartDate}) async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: isStartDate ? (_startDate ?? DateTime.now()) : (_endDate ?? _startDate ?? DateTime.now()),
+      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        if (isStartDate) {
+          _startDate = picked;
+          if (_endDate != null && _endDate!.isBefore(_startDate!)) {
+            _endDate = null; // Reset end date jika tidak valid
+          }
+        } else {
+          _endDate = picked;
+        }
+      });
+    }
+  }
+
+  Future<void> _pickFile() async {
+    FilePickerResult? result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+    );
+    if (result != null) {
+      setState(() {
+        _pickedFile = File(result.files.single.path!);
+      });
+    }
+  }
+
+  Future<void> _submitCuti() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (_startDate == null || _endDate == null || _pickedFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Harap lengkapi tanggal dan lampiran file bukti.'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    try {
+      final sessionData = await SessionManager.getSession();
+      final token = sessionData?['token'];
+      final userId = sessionData?['user']?.id;
+
+      if (token == null || userId == null) throw Exception("Sesi tidak valid.");
+
+      final success = await _apiService.submitLeave(
+        token: token,
+        userId: userId,
+        type: 'cuti', // Tipe hardcoded untuk halaman ini
+        subType: _selectedSubType!,
+        description: _reasonController.text,
+        startDate: DateFormat('yyyy-MM-dd').format(_startDate!),
+        endDate: DateFormat('yyyy-MM-dd').format(_endDate!),
+        startTime: "00:00:00",
+        endTime: "23:59:59",
+        photoPath: _pickedFile!.path,
+      );
+
+      if (mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Pengajuan cuti berhasil dikirim!'), backgroundColor: Colors.green));
+          Navigator.pop(context);
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gagal mengirim pengajuan.'), backgroundColor: Colors.red));
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi error: ${e.toString()}'), backgroundColor: Colors.red));
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5), // Background soft
+      backgroundColor: const Color(0xFFF5F5F5),
       appBar: AppBar(
-        title: const Text(
-          'Pengajuan Cuti',
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            color: Colors.black,
-          ),
-        ),
+        title: const Text('Pengajuan Cuti', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.black)),
         backgroundColor: Colors.white,
         elevation: 1,
         centerTitle: true,
@@ -40,313 +133,180 @@ class _PengajuanCutiState extends State<PengajuanCuti> {
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: ListTile(
-                leading: Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFFFF6F00),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(Icons.history, color: Colors.white, size: 24),
-                ),
-                title: const Text(
-                  "Lihat Riwayat Cuti",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black87,
-                  ),
-                ),
-                subtitle: const Text(
-                  "Cek status pengajuan sebelumnya",
-                  style: TextStyle(color: Colors.grey),
-                ),
-                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.grey),
-                onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const HistoryCuti()),
-                  );
-                },
-              ),
-            ),
-
-            const SizedBox(height: 10),
-
-            // 👉 CARD FORM UTAMA
-            Container(
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.05),
-                    blurRadius: 15,
-                    offset: const Offset(0, 5),
-                  ),
-                ],
-              ),
-              padding: const EdgeInsets.all(24),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // 👉 JUDUL
-                    const Text(
-                      "Ajukan Cuti Baru",
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.orange,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // 👉 JENIS CUTI
-                    const Text(
-                      "Jenis Cuti",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    DropdownButtonFormField<String>(
-                      initialValue: _leaveType,
-                      decoration: InputDecoration(
-                        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFFF0F0F0),
-                        hintStyle: const TextStyle(color: Colors.grey),
-                      ),
-                      items: ['Tahunan', 'Sakit', 'Melahirkan', 'Penting']
-                          .map((type) => DropdownMenuItem(
-                        value: type,
-                        child: Text(type),
-                      ))
-                          .toList(),
-                      onChanged: (value) {
-                        setState(() {
-                          _leaveType = value!;
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 20),
-
-                    // 👉 TANGGAL MULAI
-                    const Text(
-                      "Tanggal Mulai",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: () => _selectDate(context, isStartDate: true),
-                      child: AbsorbPointer(
-                        child: TextFormField(
-                          controller: _startDateController,
-                          decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF0F0F0),
-                            suffixIcon: const Icon(Icons.calendar_today, color: Colors.orange),
-                            hintText: "Pilih tanggal",
-                            hintStyle: const TextStyle(color: Colors.grey),
-                          ),
-                          readOnly: true,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // 👉 TANGGAL SELESAI
-                    const Text(
-                      "Tanggal Selesai",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    GestureDetector(
-                      onTap: () => _selectDate(context, isStartDate: false),
-                      child: AbsorbPointer(
-                        child: TextFormField(
-                          controller: _endDateController,
-                          decoration: InputDecoration(
-                            contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
-                              borderSide: BorderSide.none,
-                            ),
-                            filled: true,
-                            fillColor: const Color(0xFFF0F0F0),
-                            suffixIcon: const Icon(Icons.calendar_today, color: Colors.orange),
-                            hintText: "Pilih tanggal",
-                            hintStyle: const TextStyle(color: Colors.grey),
-                          ),
-                          readOnly: true,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-
-                    // 👉 ALASAN CUTI
-                    const Text(
-                      "Alasan Cuti",
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.grey,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    TextFormField(
-                      controller: _reasonController,
-                      maxLines: 3,
-                      decoration: InputDecoration(
-                        contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: const Color(0xFFF0F0F0),
-                        hintText: "Tulis alasan Anda...",
-                        hintStyle: const TextStyle(color: Colors.grey),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Masukkan alasan cuti';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 32),
-
-                    // 👉 TOMBOL AJUKAN
-                    _isLoading
-                        ? const Center(child: CircularProgressIndicator())
-                        : SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: _submitLeaveRequest,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFFF6F00), // Orange brand els.id
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(vertical: 18),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                        ),
-                        child: const Text(
-                          "AJUKAN CUTI",
-                          style: TextStyle(
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 30),
+            // Tombol Riwayat
+            _buildHistoryButton(),
+            const SizedBox(height: 24),
+            // Form Card
+            _buildFormCard(),
           ],
         ),
       ),
     );
   }
 
-  Future<void> _selectDate(BuildContext context, {required bool isStartDate}) async {
-    final DateTime? picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(DateTime.now().year + 1),
-      builder: (context, child) {
-        return Theme(
-          data: ThemeData.light().copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Color(0xFFFF6F00), // Orange brand
+  Widget _buildHistoryButton() {
+    return InkWell(
+      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const HistoryCuti())),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
+        child: const Row(
+          children: [
+            Icon(Icons.history, color: Colors.orange, size: 28),
+            SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text("Lihat Riwayat Cuti", style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  Text("Cek status pengajuan sebelumnya", style: TextStyle(color: Colors.grey)),
+                ],
+              ),
             ),
-          ),
-          child: child!,
-        );
-      },
+            Icon(Icons.arrow_forward_ios, color: Colors.grey, size: 16),
+          ],
+        ),
+      ),
     );
-
-    if (picked != null) {
-      setState(() {
-        if (isStartDate) {
-          _startDate = picked;
-          _startDateController.text = DateFormat('dd MMM yyyy').format(picked);
-        } else {
-          _endDate = picked;
-          _endDateController.text = DateFormat('dd MMM yyyy').format(picked);
-        }
-      });
-    }
   }
 
-  void _submitLeaveRequest() {
-    if (_formKey.currentState!.validate()) {
-      setState(() {
-        _isLoading = true;
-      });
+  Widget _buildFormCard() {
+    return Container(
+      padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text("Ajukan Cuti Baru", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange)),
+            const SizedBox(height: 24),
 
-      // Simulasi proses loading
-      Future.delayed(const Duration(seconds: 2), () {
-        setState(() {
-          _isLoading = false;
-        });
+            // --- Dropdown Jenis Cuti ---
+            const Text("Jenis Cuti", style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              value: _selectedSubType,
+              items: _cutiSubTypes.map((type) => DropdownMenuItem(value: type, child: Text(type))).toList(),
+              onChanged: (value) => setState(() => _selectedSubType = value),
+              decoration: _inputDecoration(),
+            ),
+            const SizedBox(height: 16),
 
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Pengajuan cuti berhasil dikirim!'),
-            backgroundColor: Colors.green,
+            // --- Tanggal Mulai & Selesai ---
+            Row(
+              children: [
+                Expanded(child: _buildDatePickerField(isStart: true)),
+                const SizedBox(width: 16),
+                Expanded(child: _buildDatePickerField(isStart: false)),
+              ],
+            ),
+            const SizedBox(height: 16),
+
+            // --- Alasan Cuti ---
+            const Text("Alasan Cuti", style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _reasonController,
+              decoration: _inputDecoration(hint: "Tulis alasan Anda..."),
+              maxLines: 3,
+              validator: (v) => v!.isEmpty ? 'Alasan tidak boleh kosong' : null,
+            ),
+            const SizedBox(height: 16),
+
+            // --- Lampiran File ---
+            _buildFilePickerField(),
+            const SizedBox(height: 24),
+
+            // --- Tombol Submit ---
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _submitCuti,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.orange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                child: _isLoading
+                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 3))
+                    : const Text("AJUKAN CUTI", style: TextStyle(fontWeight: FontWeight.bold)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDatePickerField({required bool isStart}) {
+    String title = isStart ? "Tanggal Mulai" : "Tanggal Selesai";
+    DateTime? date = isStart ? _startDate : _endDate;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(title, style: const TextStyle(color: Colors.grey)),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: () => _selectDate(context, isStartDate: isStart),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            decoration: BoxDecoration(color: Colors.grey[100], borderRadius: BorderRadius.circular(12)),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(date == null ? 'Pilih tanggal' : DateFormat('dd/MM/yyyy').format(date)),
+                const Icon(Icons.calendar_today, color: Colors.orange, size: 20),
+              ],
+            ),
           ),
-        );
+        ),
+      ],
+    );
+  }
 
-        // Reset form
-        _formKey.currentState!.reset();
-        _startDateController.clear();
-        _endDateController.clear();
-        _reasonController.clear();
-        setState(() {
-          _leaveType = 'Tahunan';
-        });
-      });
-    }
+  Widget _buildFilePickerField() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text("Lampiran Bukti", style: TextStyle(color: Colors.grey)),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: _pickFile,
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+            decoration: BoxDecoration(
+              color: Colors.grey[100],
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.attach_file, color: Colors.orange),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _pickedFile == null ? 'Pilih file (PDF, JPG, PNG)' : _pickedFile!.path.split('/').last,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  InputDecoration _inputDecoration({String? hint}) {
+    return InputDecoration(
+      hintText: hint,
+      filled: true,
+      fillColor: Colors.grey[100],
+      contentPadding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+    );
   }
 }

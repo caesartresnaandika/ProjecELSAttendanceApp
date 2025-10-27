@@ -128,9 +128,12 @@ class _IstirahatPhotoScreenState extends State<IstirahatPhotoScreen> with Widget
     });
   }
 
-  void _confirmPicture() {
+  // Di dalam file: IstirahatPhotoScreen.dart
+
+  void _confirmPicture() async {
     if (_savedImagePath == null) return;
-    Navigator.push(
+
+    final result = await Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => IstirahatConfirmation(
@@ -138,12 +141,12 @@ class _IstirahatPhotoScreenState extends State<IstirahatPhotoScreen> with Widget
           isRestOut: widget.isRestOut,
         ),
       ),
-    ).then((result) {
-      // Jika IstirahatConfirmation mengembalikan true, pop ke MainMenu
-      if (result == true) {
-        Navigator.pop(context, true); // ✅ Kirim true ke MainMenu
-      }
-    });
+    );
+
+    // Jika konfirmasi berhasil, kembalikan hasil ke MainMenu
+    if (result == true && mounted) {
+      Navigator.pop(context, true); // 👈 Pop dari IstirahatPhotoScreen ke MainMenu
+    }
   }
   @override
   Widget build(BuildContext context) {

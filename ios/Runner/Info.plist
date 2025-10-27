@@ -49,5 +49,7 @@
     <string>Aplikasi ini butuh akses kamera untuk verifikasi absensi.</string>
     <key>NSLocationWhenInUseUsageDescription</key>
     <string>Aplikasi ini butuh akses lokasi untuk validasi absensi.</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Aplikasi ini memerlukan akses lokasi untuk mencatat kehadiran Anda.</string>
 </dict>
 </plist>

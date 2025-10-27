@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:project_aplikasi_absensi_hrd_els/models/attendance_model.dart';
@@ -27,6 +28,58 @@ class _MainMenuState extends State<MainMenu> {
   final GlobalKey<_AttendanceCardState> _attendanceCardKey =
   GlobalKey<_AttendanceCardState>();
 
+  // === Tambahkan Fungsi Mulai Absensi dan Istirahat ===
+  Future<void> _startAttendance(String attendanceType) async {
+    try {
+      print('🚀 Memulai presensi: $attendanceType');
+      final result = await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PhotoScreen(
+            userId: widget.userData.id,
+            token: widget.token,
+            attendanceType: attendanceType,
+          ),
+        ),
+      );
+
+      // Debug: print hasil navigasi
+      print('🔄 Hasil dari PhotoScreen: $result');
+
+      if (result == true && mounted) {
+        print('🔄 Memperbarui status kehadiran...');
+        await _attendanceCardKey.currentState?.fetchAttendanceStatus();
+
+        // Tampilkan feedback visual
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Data kehadiran diperbarui!'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      print('❌ Error dalam _startAttendance: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _startBreak(bool isRestOut) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => IstirahatPhotoScreen(isRestOut: isRestOut),
+      ),
+    );
+    if (result == true) {
+      await _attendanceCardKey.currentState?.fetchAttendanceStatus();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -43,6 +96,9 @@ class _MainMenuState extends State<MainMenu> {
               key: _attendanceCardKey,
               userData: widget.userData,
               token: widget.token,
+              // Kirim callback navigasi ke _AttendanceCard:
+              onAttendancePressed: _startAttendance,
+              onBreakPressed: _startBreak,
             ),
             const SizedBox(height: 24),
             _buildFavoriteMenu(),
@@ -51,6 +107,7 @@ class _MainMenuState extends State<MainMenu> {
       ),
     );
   }
+
 
   Widget _buildFavoriteMenu() {
     return Column(
@@ -82,7 +139,7 @@ class _MainMenuState extends State<MainMenu> {
               );
             }),
             _buildMenuItem(
-                Icons.card_travel_outlined, "Dinas", Colors.purple, () {
+                Icons.card_travel_outlined, "PerjalananDinasScreen", Colors.purple, () {
               Navigator.push(
                 context,
                 MaterialPageRoute(
@@ -157,13 +214,26 @@ class _MainMenuState extends State<MainMenu> {
 }
 
 // =======================================================================
-// WIDGET KARTU ABSENSI (BAGIAN YANG DIPERBARUI TOTAL)
+// WIDGET KARTU ABSENSI (DIPERBAIKI DENGAN CALLBACK)
 // =======================================================================
 class _AttendanceCard extends StatefulWidget {
   final User userData;
   final String token;
-  const _AttendanceCard(
-      {super.key, required this.userData, required this.token});
+  final GlobalKey<_AttendanceCardState>? attendanceCardKey;
+
+  // Tambahkan:
+  final Future<void> Function(String attendanceType) onAttendancePressed;
+  final Future<void> Function(bool isRestOut) onBreakPressed;
+
+  const _AttendanceCard({
+    super.key,
+    required this.userData,
+    required this.token,
+    this.attendanceCardKey,
+    required this.onAttendancePressed,
+    required this.onBreakPressed,
+  });
+
   @override
   State<_AttendanceCard> createState() => _AttendanceCardState();
 }
@@ -219,6 +289,8 @@ class _AttendanceCardState extends State<_AttendanceCard> {
   }
 
   Future<void> fetchAttendanceStatus() async {
+    print('🔄 fetchAttendanceStatus dipanggil');
+
     if (mounted) setState(() => _isLoading = true);
 
     try {
@@ -227,48 +299,77 @@ class _AttendanceCardState extends State<_AttendanceCard> {
         userId: widget.userData.id,
       );
 
-      // Reset semua state sebelum diisi ulang
+      print('📊 Data attendance diterima: ${attendanceList.length} records');
+
+      // Debug: print semua data yang diterima dengan detail
+      print('🔍 DETAIL DATA ATTENDANCE:');
+      for (var attendance in attendanceList) {
+        print('   📝 Type: ${attendance.type} | Time: ${DateFormat('HH:mm').format(attendance.datetime)} | Date: ${attendance.datetime} | Employee: ${attendance.employeeId}');
+      }
+
       String? checkin, checkout, restIn, restOut;
       String? checkinImageUrl, checkoutImageUrl, restInImageUrl, restOutImageUrl;
 
       if (attendanceList.isNotEmpty) {
+        // Urutkan dari yang terlama ke terbaru
         attendanceList.sort((a, b) => a.datetime.compareTo(b.datetime));
 
-        // Ambil data check-in
-        final firstCheckin = attendanceList.firstWhere(
-                (att) => att.type == 'checkin',
-            orElse: () => AttendanceData.fallback());
-        if (firstCheckin.datetime.year != 0) {
+        print('🕒 Data setelah diurutkan:');
+        for (var att in attendanceList) {
+          print('   ${att.type} - ${DateFormat('HH:mm').format(att.datetime)}');
+        }
+
+        // ✅ PERBAIKAN: Debug setiap pencarian data
+
+        // Cari checkin pertama
+        final checkins = attendanceList.where((att) => att.type == 'checkin').toList();
+        print('🔍 Checkins found: ${checkins.length}');
+        if (checkins.isNotEmpty) {
+          final firstCheckin = checkins.first;
           checkin = DateFormat('HH:mm').format(firstCheckin.datetime);
           checkinImageUrl = firstCheckin.image;
+          print('✅ Checkin ditemukan: $checkin');
+        } else {
+          print('ℹ️ Tidak ada data checkin');
         }
 
-        // Ambil data check-out
-        final lastCheckout = attendanceList.lastWhere(
-                (att) => att.type == 'checkout',
-            orElse: () => AttendanceData.fallback());
-        if (lastCheckout.datetime.year != 0) {
+        // Cari checkout terakhir
+        final checkouts = attendanceList.where((att) => att.type == 'checkout').toList();
+        print('🔍 Checkouts found: ${checkouts.length}');
+        if (checkouts.isNotEmpty) {
+          final lastCheckout = checkouts.last;
           checkout = DateFormat('HH:mm').format(lastCheckout.datetime);
           checkoutImageUrl = lastCheckout.image;
+          print('✅ Checkout ditemukan: $checkout');
+        } else {
+          print('ℹ️ Tidak ada data checkout');
         }
 
-        // Ambil data istirahat masuk
-        final firstRestIn = attendanceList.firstWhere(
-                (att) => att.type == 'rest_in',
-            orElse: () => AttendanceData.fallback());
-        if (firstRestIn.datetime.year != 0) {
+        // Cari rest_in pertama
+        final restIns = attendanceList.where((att) => att.type == 'rest_in').toList();
+        print('🔍 Rest Ins found: ${restIns.length}');
+        if (restIns.isNotEmpty) {
+          final firstRestIn = restIns.first;
           restIn = DateFormat('HH:mm').format(firstRestIn.datetime);
           restInImageUrl = firstRestIn.image;
+          print('✅ Rest In ditemukan: $restIn');
+        } else {
+          print('ℹ️ Tidak ada data rest_in');
         }
 
-        // Ambil data istirahat keluar
-        final lastRestOut = attendanceList.lastWhere(
-                (att) => att.type == 'rest_out',
-            orElse: () => AttendanceData.fallback());
-        if (lastRestOut.datetime.year != 0) {
+        // Cari rest_out terakhir
+        final restOuts = attendanceList.where((att) => att.type == 'rest_out').toList();
+        print('🔍 Rest Outs found: ${restOuts.length}');
+        if (restOuts.isNotEmpty) {
+          final lastRestOut = restOuts.last;
           restOut = DateFormat('HH:mm').format(lastRestOut.datetime);
           restOutImageUrl = lastRestOut.image;
+          print('✅ Rest Out ditemukan: $restOut');
+        } else {
+          print('ℹ️ Tidak ada data rest_out');
         }
+      } else {
+        print('📭 Tidak ada data attendance untuk hari ini');
       }
 
       if (mounted) {
@@ -283,13 +384,22 @@ class _AttendanceCardState extends State<_AttendanceCard> {
           _breakInImageUrl = restInImageUrl;
           _breakOutImageUrl = restOutImageUrl;
         });
+        print('✅ State diperbarui - Clock In: $_clockInTime, Clock Out: $_clockOutTime');
+        print('✅ State diperbarui - Break In: $_breakInTime, Break Out: $_breakOutTime');
+
+        // ✅ PERBAIKAN: Debug final state
+        print('🎯 FINAL STATE:');
+        print('   Presensi - In: $_clockInTime, Out: $_clockOutTime');
+        print('   Istirahat - In: $_breakInTime, Out: $_breakOutTime');
       }
     } on SessionExpiredException catch (e) {
+      print('❌ Session expired: ${e.message}');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.message), duration: const Duration(seconds: 3)),
       );
       await _handleLogout();
     } catch (e) {
+      print('❌ Error fetchAttendanceStatus: $e');
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Error memuat data: ${e.toString()}")),
       );
@@ -297,31 +407,6 @@ class _AttendanceCardState extends State<_AttendanceCard> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
-  Future<void> _navigateToPhotoScreen(String attendanceType) async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => PhotoScreen(
-          userId: widget.userData.id,
-          token: widget.token,
-          attendanceType: attendanceType,
-        ),
-      ),
-    );
-    if (result == true && mounted) await fetchAttendanceStatus();
-  }
-
-  Future<void> _navigateToBreakScreen(bool isRestOut) async {
-    final result = await Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => IstirahatPhotoScreen(isRestOut: isRestOut),
-      ),
-    );
-    if (result == true && mounted) await fetchAttendanceStatus();
-  }
-
   String _formatTodayDate() {
     final now = DateTime.now();
     final formatter = DateFormat('EEE, d MMM y', 'id_ID');
@@ -329,18 +414,16 @@ class _AttendanceCardState extends State<_AttendanceCard> {
   }
 
   void _showImageDialog(BuildContext context, String imageUrl) {
-    // ✅ header untuk gambar
     final String basicAuth = 'Basic ${base64Encode(utf8.encode('ELS_ELS:t{\$'))}';
     final Map<String, String> headers = {
       'Authorization': basicAuth,
-      'token': widget.token, // Menggunakan token dari state
+      'token': widget.token,
     };
     showDialog(
       context: context,
       builder: (BuildContext context) {
         return Dialog(
-          shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12.0)),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(12.0),
             child: Container(
@@ -349,16 +432,14 @@ class _AttendanceCardState extends State<_AttendanceCard> {
                 imageUrl,
                 headers: headers,
                 fit: BoxFit.cover,
-                loadingBuilder: (BuildContext context, Widget child,
-                    ImageChunkEvent? loadingProgress) {
+                loadingBuilder: (BuildContext context, Widget child, ImageChunkEvent? loadingProgress) {
                   if (loadingProgress == null) return child;
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(32.0),
                       child: CircularProgressIndicator(
                         value: loadingProgress.expectedTotalBytes != null
-                            ? loadingProgress.cumulativeBytesLoaded /
-                            loadingProgress.expectedTotalBytes!
+                            ? loadingProgress.cumulativeBytesLoaded / loadingProgress.expectedTotalBytes!
                             : null,
                       ),
                     ),
@@ -368,8 +449,7 @@ class _AttendanceCardState extends State<_AttendanceCard> {
                   return const Center(
                     child: Padding(
                       padding: EdgeInsets.all(32.0),
-                      child: Icon(Icons.broken_image,
-                          size: 50, color: Colors.red),
+                      child: Icon(Icons.broken_image, size: 50, color: Colors.red),
                     ),
                   );
                 },
@@ -436,15 +516,16 @@ class _AttendanceCardState extends State<_AttendanceCard> {
             child: Container(
               height: 40,
               decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    )
-                  ]),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.1),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  )
+                ],
+              ),
             ),
           ),
           Row(
@@ -489,33 +570,32 @@ class _AttendanceCardState extends State<_AttendanceCard> {
     }
 
     final bool hasClockedIn = _clockInTime != null;
-    final bool isAttendanceComplete = hasClockedIn && _clockOutTime != null;
+    final bool hasClockedOut = _clockOutTime != null;
 
     String buttonText;
     Color buttonColor;
     VoidCallback? onPressedAction;
 
-    if (isAttendanceComplete) {
+    if (hasClockedOut) {
       buttonText = 'Presensi Lengkap';
       buttonColor = Colors.grey;
       onPressedAction = null;
     } else if (hasClockedIn) {
       buttonText = 'Rekam Jam Keluar';
       buttonColor = Colors.red;
-      onPressedAction = () => _navigateToPhotoScreen('checkout');
+      onPressedAction = () => widget.onAttendancePressed('checkout');
     } else {
       buttonText = 'Rekam Jam Masuk';
       buttonColor = Colors.orange;
-      onPressedAction = () => _navigateToPhotoScreen('checkin');
+      onPressedAction = () => widget.onAttendancePressed('checkin');
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(_formatTodayDate(),
-            style: const TextStyle(fontWeight: FontWeight.bold)),
-        const Text("Shift: -",
-            style: TextStyle(color: Colors.grey, fontSize: 12)),
+        // ✅ PERBAIKAN: Hapus debug info dari UI final
+        Text(_formatTodayDate(), style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text("Shift: -", style: TextStyle(color: Colors.grey, fontSize: 12)),
         const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -552,12 +632,11 @@ class _AttendanceCardState extends State<_AttendanceCard> {
           child: ElevatedButton(
             onPressed: onPressedAction,
             style: ElevatedButton.styleFrom(
-                backgroundColor: buttonColor,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8))),
-            child: Text(buttonText,
-                style: const TextStyle(fontWeight: FontWeight.bold)),
+              backgroundColor: buttonColor,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: Text(buttonText, style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ),
         const SizedBox(height: 16),
@@ -570,20 +649,17 @@ class _AttendanceCardState extends State<_AttendanceCard> {
       return const Center(child: CircularProgressIndicator());
     }
 
-    final String startBreakTime = _breakInTime ?? "--:--";
-    final String endBreakTime = _breakOutTime ?? "--:--";
+    final bool hasStartedBreak = _breakInTime != null;
+    final bool hasEndedBreak = _breakOutTime != null;
 
     String buttonText;
     Color buttonColor;
     VoidCallback? onPressedAction;
 
-    final bool hasStartedBreak = _breakInTime != null;
-    final bool hasEndedBreak = _breakOutTime != null;
-
     if (hasStartedBreak && !hasEndedBreak) {
       buttonText = "Selesai Istirahat";
       buttonColor = Colors.red;
-      onPressedAction = () => _navigateToBreakScreen(true); // isRestOut = true
+      onPressedAction = () => widget.onBreakPressed(true);
     } else if (hasStartedBreak && hasEndedBreak) {
       buttonText = "Istirahat Selesai";
       buttonColor = Colors.grey;
@@ -591,23 +667,21 @@ class _AttendanceCardState extends State<_AttendanceCard> {
     } else {
       buttonText = "Mulai Istirahat";
       buttonColor = Colors.orange;
-      onPressedAction = () => _navigateToBreakScreen(false); // isRestOut = false
+      onPressedAction = () => widget.onBreakPressed(false);
     }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(_formatTodayDate(),
-            style: const TextStyle(fontWeight: FontWeight.bold)),
-        const Text("Shift: -",
-            style: TextStyle(color: Colors.grey, fontSize: 12)),
+        Text(_formatTodayDate(), style: const TextStyle(fontWeight: FontWeight.bold)),
+        const Text("Shift: -", style: TextStyle(color: Colors.grey, fontSize: 12)),
         const SizedBox(height: 16),
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceAround,
           children: [
             _TimeInfoColumn(
               title: "Jam Mulai Istirahat",
-              time: startBreakTime,
+              time: _breakInTime ?? "--:--",
               status: "Di Lokasi",
               icon: Icons.arrow_downward,
               iconColor: Colors.green,
@@ -619,7 +693,7 @@ class _AttendanceCardState extends State<_AttendanceCard> {
             ),
             _TimeInfoColumn(
               title: "Jam Selesai Istirahat",
-              time: endBreakTime,
+              time: _breakOutTime ?? "--:--",
               status: "Di Lokasi",
               icon: Icons.arrow_upward,
               iconColor: Colors.red,
@@ -639,14 +713,9 @@ class _AttendanceCardState extends State<_AttendanceCard> {
             style: ElevatedButton.styleFrom(
               backgroundColor: buttonColor,
               foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: Text(
-              buttonText,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
+            child: Text(buttonText, style: const TextStyle(fontWeight: FontWeight.bold)),
           ),
         ),
         const SizedBox(height: 16),
@@ -675,7 +744,8 @@ class _TimeInfoColumn extends StatelessWidget {
     required this.icon,
     required this.iconColor,
     this.imageUrl,
-    this.onIconTap, required this.token,
+    this.onIconTap,
+    required this.token,
   });
 
   @override
@@ -685,7 +755,7 @@ class _TimeInfoColumn extends StatelessWidget {
     final String basicAuth = 'Basic ${base64Encode(utf8.encode('ELS_ELS:t{\$'))}';
     final Map<String, String> headers = {
       'Authorization': basicAuth,
-      'token': token, // Menggunakan token dari state
+      'token': token,
     };
 
     return Column(
@@ -720,11 +790,12 @@ class _TimeInfoColumn extends StatelessWidget {
           children: [
             Icon(icon, color: iconColor, size: 16),
             const SizedBox(width: 4),
-            Text(status,
-                style: const TextStyle(color: Colors.grey, fontSize: 12)),
+            Text(status, style: const TextStyle(color: Colors.grey, fontSize: 12)),
           ],
         )
       ],
     );
   }
+
 }
+

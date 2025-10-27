@@ -45,7 +45,6 @@ class _Logo extends StatelessWidget {
   }
 }
 
-
 class _FormContent extends StatefulWidget {
   const _FormContent();
 
@@ -55,7 +54,6 @@ class _FormContent extends StatefulWidget {
 
 class __FormContentState extends State<_FormContent> {
   bool _isPasswordVisible = false;
-  bool _rememberMe = false;
   bool _isLoading = false;
 
   final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
@@ -87,7 +85,6 @@ class __FormContentState extends State<_FormContent> {
         final User user = response['user'];
         final String token = response['token'];
 
-        // Cukup panggil satu fungsi ini untuk menyimpan semuanya
         await SessionManager.saveSession(token, user);
 
         Navigator.pushReplacement(
@@ -168,20 +165,6 @@ class __FormContentState extends State<_FormContent> {
                   },
                 ),
               ),
-            ),
-            _gap(),
-            CheckboxListTile(
-              value: _rememberMe,
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() {
-                  _rememberMe = value;
-                });
-              },
-              title: const Text('Remember Me'),
-              controlAffinity: ListTileControlAffinity.leading,
-              dense: true,
-              contentPadding: EdgeInsets.zero,
             ),
             _gap(),
             SizedBox(

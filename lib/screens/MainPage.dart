@@ -32,7 +32,7 @@ class _MainPageState extends State<MainPage> {
         children: [
           const CircleAvatar(
             radius: 22,// Sedikit diperbesar agar mirip desain
-            backgroundImage: AssetImage('assets/images/icon.png'),
+            // backgroundImage: AssetImage('assets/images/icon.png'),
           ),
           const SizedBox(width : 12), // Atur jarak di sini
           Column(

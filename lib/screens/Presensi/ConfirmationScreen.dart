@@ -88,8 +88,8 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
 
     try {
       bool success = await apiService.recordAttendance(
-        token: widget.token, // Gunakan token asli dari halaman sebelumnya
-        type: widget.attendanceType,      // Untuk tipe presensi
+        token: widget.token,
+        type: widget.attendanceType,
         photo: widget.imagePath,
         latitude: _position!.latitude,
         longitude: _position!.longitude,
@@ -99,10 +99,21 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
       if (mounted) setState(() => _isLoading = false);
 
       if (success && mounted) {
+        // TAMPILKAN SNACKBAR DULU
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Kehadiran berhasil dicatat!')),
+          const SnackBar(
+            content: Text('Kehadiran berhasil dicatat!'),
+            duration: Duration(seconds: 2),
+          ),
         );
-        Navigator.pop(context, true);
+
+        // TUNGGU SEBENTAR SEBELUM NAVIGASI
+        await Future.delayed(const Duration(milliseconds: 500));
+
+        // KEMBALI KE MAINMENU DENGAN HASIL TRUE
+        if (mounted) {
+          Navigator.pop(context, true); // Kembali ke PhotoScreen
+        }
       } else if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Gagal mencatat kehadiran! Coba lagi.')),
@@ -114,12 +125,18 @@ class _ConfirmationScreenState extends State<ConfirmationScreen> {
         final prefs = await SharedPreferences.getInstance();
         await prefs.clear();
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
-        Navigator.pushAndRemoveUntil(context, MaterialPageRoute(builder: (context) => const SignInPage()), (route) => false);
+        Navigator.pushAndRemoveUntil(
+            context,
+            MaterialPageRoute(builder: (context) => const SignInPage()),
+                (route) => false
+        );
       }
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Terjadi error: ${e.toString()}')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Terjadi error: ${e.toString()}')),
+        );
       }
     }
   }

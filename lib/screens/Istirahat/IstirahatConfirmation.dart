@@ -100,10 +100,14 @@ class _IstirahatConfirmationState extends State<IstirahatConfirmation> {
     final user = session['user'] as User;
     final apiService = ApiService();
 
+    // ✅ TAMBAH: Debug log untuk type
+    final breakType = widget.isRestOut ? "rest_out" : "rest_in";
+    print('🚀 Mengirim data istirahat: $breakType');
+
     try {
       bool success = await apiService.recordAttendance(
         token: token,
-        type: widget.isRestOut ? "rest_out" : "rest_in",
+        type: breakType, // ✅ Gunakan variabel
         photo: widget.imagePath,
         latitude: _position!.latitude,
         longitude: _position!.longitude,
@@ -113,27 +117,25 @@ class _IstirahatConfirmationState extends State<IstirahatConfirmation> {
       if (mounted) setState(() => _isLoading = false);
 
       if (success && mounted) {
-        // 1. Update status istirahat di session manager
-        if (widget.isRestOut) {
-          await SessionManager.setIsOnRest(false);
-          await SessionManager.setRestInTime(null);
-        } else {
-          await SessionManager.setIsOnRest(true);
-          await SessionManager.setRestInTime(DateTime.now().toString());
-        }
+        // ✅ PERBAIKAN: Hapus session management yang tidak perlu
+        // Karena data sudah diambil dari API langsung
 
-        // 2. Tampilkan pesan sukses
+        print('✅ Istirahat berhasil dicatat: $breakType');
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(widget.isRestOut ? "Istirahat selesai!" : "Istirahat dimulai!"),
+            duration: const Duration(seconds: 2),
           ),
         );
 
-        // 3. Kembali ke halaman sebelumnya dengan hasil 'true'
-        // Cukup panggil pop SATU KALI saja.
+        // ✅ PERBAIKAN: Tunggu sebentar sebelum navigasi
+        await Future.delayed(const Duration(milliseconds: 500));
+
         Navigator.pop(context, true);
 
       } else if (mounted) {
+        print('❌ Gagal mencatat istirahat: $breakType');
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Gagal mencatat istirahat! Coba lagi.')),
         );
@@ -152,6 +154,7 @@ class _IstirahatConfirmationState extends State<IstirahatConfirmation> {
     } catch (e) {
       if (mounted) {
         setState(() => _isLoading = false);
+        print('❌ Error submit istirahat: $e');
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text('Terjadi error: ${e.toString()}')));
       }
