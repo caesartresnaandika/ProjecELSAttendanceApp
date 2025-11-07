@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
@@ -6,13 +7,12 @@ import 'package:project_aplikasi_absensi_hrd_els/models/attendance_model.dart';
 import 'package:project_aplikasi_absensi_hrd_els/models/user_model.dart';
 import 'package:project_aplikasi_absensi_hrd_els/screens/PerjalananDInas/PerjalananDinasScreen.dart';
 import 'package:project_aplikasi_absensi_hrd_els/screens/Presensi/PhotoScreen.dart';
+import 'package:project_aplikasi_absensi_hrd_els/screens/Presensi/HistoryAttendanceScreen.dart';
 import 'package:project_aplikasi_absensi_hrd_els/services/api_services.dart';
 import 'package:project_aplikasi_absensi_hrd_els/screens/Cuti/PengajuanCuti.dart';
-import 'package:project_aplikasi_absensi_hrd_els/screens/Kalender/KalenderScreen.dart';
 import '../Ijin/IjinScreen.dart';
 import 'package:project_aplikasi_absensi_hrd_els/services/session_manager.dart';
 import 'package:project_aplikasi_absensi_hrd_els/screens/SignIn/SignInPage.dart';
-import 'dart:convert';
 import 'package:project_aplikasi_absensi_hrd_els/screens/Istirahat/IstirahatPhotoScreen.dart';
 
 class MainMenu extends StatefulWidget {
@@ -28,7 +28,6 @@ class _MainMenuState extends State<MainMenu> {
   final GlobalKey<_AttendanceCardState> _attendanceCardKey =
   GlobalKey<_AttendanceCardState>();
 
-  // === Tambahkan Fungsi Mulai Absensi dan Istirahat ===
   Future<void> _startAttendance(String attendanceType) async {
     try {
       print('🚀 Memulai presensi: $attendanceType');
@@ -43,14 +42,12 @@ class _MainMenuState extends State<MainMenu> {
         ),
       );
 
-      // Debug: print hasil navigasi
       print('🔄 Hasil dari PhotoScreen: $result');
 
       if (result == true && mounted) {
         print('🔄 Memperbarui status kehadiran...');
         await _attendanceCardKey.currentState?.fetchAttendanceStatus();
 
-        // Tampilkan feedback visual
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Data kehadiran diperbarui!'),
@@ -75,7 +72,7 @@ class _MainMenuState extends State<MainMenu> {
         builder: (context) => IstirahatPhotoScreen(isRestOut: isRestOut),
       ),
     );
-    if (result == true) {
+    if (result == true && mounted) {
       await _attendanceCardKey.currentState?.fetchAttendanceStatus();
     }
   }
@@ -92,15 +89,22 @@ class _MainMenuState extends State<MainMenu> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // 📋 KARTU PRESENSI
             _AttendanceCard(
               key: _attendanceCardKey,
               userData: widget.userData,
               token: widget.token,
-              // Kirim callback navigasi ke _AttendanceCard:
               onAttendancePressed: _startAttendance,
               onBreakPressed: _startBreak,
             ),
             const SizedBox(height: 24),
+
+            // 🔝 MENU RIWAYAT PRESENSI DI BAWAH KARTU DAN DI ATAS TULISAN MENU
+            _buildHistoryMenuItem(),
+
+            const SizedBox(height: 24),
+
+            // 📁 MENU FAVORIT (HANYA 3)
             _buildFavoriteMenu(),
           ],
         ),
@@ -108,6 +112,59 @@ class _MainMenuState extends State<MainMenu> {
     );
   }
 
+  // 🔝 MENU RIWAYAT PRESENSI — DITEMPATKAN DI BAWAH KARTU DAN DI ATAS TULISAN MENU
+  Widget _buildHistoryMenuItem() {
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => HistoryAttendanceScreen(
+              token: widget.token,
+              userId: widget.userData.id,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.teal.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(Icons.history, color: Colors.teal, size: 28),
+            ),
+            const SizedBox(width: 12),
+            Text(
+              "Riwayat Presensi",
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w500,
+                color: Colors.black87,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _buildFavoriteMenu() {
     return Column(
@@ -139,26 +196,18 @@ class _MainMenuState extends State<MainMenu> {
               );
             }),
             _buildMenuItem(
-                Icons.card_travel_outlined, "PerjalananDinasScreen", Colors.purple, () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const PerjalananDinasScreen()),
-              );
-            }),
-            _buildMenuItem(Icons.calendar_today, "Kalender", Colors.green, () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (context) => const KalenderScreen()),
-              );
-            }),
-            _buildMenuItem(Icons.history, "Riwayat", Colors.teal, () {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                    content: Text('Fitur Riwayat akan segera hadir')),
-              );
-            }),
+              Icons.card_travel_outlined,
+              "Perjalanan Dinas",
+              Colors.purple,
+                  () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (context) => const PerjalananDinasScreen()),
+                );
+              },
+            ),
+            // ❌ Menu Kalender dihapus karena sudah ada di navigation bar
           ],
         ),
       ],
@@ -219,9 +268,6 @@ class _MainMenuState extends State<MainMenu> {
 class _AttendanceCard extends StatefulWidget {
   final User userData;
   final String token;
-  final GlobalKey<_AttendanceCardState>? attendanceCardKey;
-
-  // Tambahkan:
   final Future<void> Function(String attendanceType) onAttendancePressed;
   final Future<void> Function(bool isRestOut) onBreakPressed;
 
@@ -229,7 +275,6 @@ class _AttendanceCard extends StatefulWidget {
     super.key,
     required this.userData,
     required this.token,
-    this.attendanceCardKey,
     required this.onAttendancePressed,
     required this.onBreakPressed,
   });

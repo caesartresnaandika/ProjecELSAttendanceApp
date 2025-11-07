@@ -5,7 +5,6 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 import '../models/attendance_model.dart';
-import '../models/leave_model.dart';
 
 class SessionExpiredException implements Exception {
   final String message;
@@ -317,4 +316,123 @@ class ApiService {
       return false;
     }
   }
+
+  // --- FUNGSI AMBIL DATA PRESENSI 7 HARI TERAKHIR (UNTUK RIWAYAT) ---
+  Future<List<AttendanceData>> getAttendanceHistory7Days({
+    required String token,
+    required String userId,
+  }) async {
+
+    final now = DateTime.now();
+    final List<Future<List<AttendanceData>>> futures = [];
+
+    print('📡 [History] Menyiapkan 7 panggilan API paralel...');
+
+    // 1. Buat 7 buah "Future" (permintaan data)
+    for (int i = 0; i < 7; i++) {
+      final date = now.subtract(Duration(days: i));
+      final formattedDate = DateFormat('yyyy-MM-dd').format(date);
+
+      // Menambahkan "tugas" untuk mengambil data tgl 'formattedDate'
+      futures.add(
+          _fetchSingleDayHistory(
+              token: token,
+              userId: userId,
+              date: formattedDate
+          )
+      );
+    }
+
+    try {
+      // 2. Jalankan semua 7 "tugas" secara bersamaan
+      final List<List<AttendanceData>> resultsPerDay = await Future.wait(futures);
+
+      // 3. Gabungkan semua hasil (List<List<Data>> -> List<Data>)
+      final List<AttendanceData> allResults = resultsPerDay
+          .expand((dailyList) => dailyList)
+          .toList();
+
+      // 4. Urutkan hasil gabungan dari yang terbaru ke terlama
+      allResults.sort((a, b) => b.datetime.compareTo(a.datetime));
+
+      print('✅ [History] Selesai. Total ${allResults.length} records dari 7 hari.');
+      return allResults;
+
+    } catch (e) {
+      // Jika salah satu dari 7 panggilan gagal (misal: sesi habis)
+      if (e is SessionExpiredException) rethrow;
+      print("❌ Error getAttendanceHistory7Days (Future.wait): $e");
+      return [];
+    }
+  }
+
+  /// --- FUNGSI HELPER UNTUK AMBIL RIWAYAT PER HARI ---
+  Future<List<AttendanceData>> _fetchSingleDayHistory({
+    required String token,
+    required String userId,
+    required String date, // Format "yyyy-MM-dd"
+  }) async {
+    final url = Uri.parse('$_baseUrl/api/attend/data');
+    final headers = {
+      'Authorization': basicAuth,
+      'token': token,
+      'Content-Type': 'application/json',
+    };
+
+    // Body request HANYA untuk 1 hari menggunakan "like"
+    final body = jsonEncode({
+      "limit": 50,
+      "page": 1,
+      "sort": "datetime",
+      "dir": "DESC",
+      "filter": [
+        {
+          "type": "string",
+          "property": "employee_id",
+          "operator": "eq",
+          "value": userId
+        },
+        {
+          "type": "string",
+          "property": "datetime",
+          "operator": "like", // Menggunakan "like" yang sudah pasti berhasil
+          "value": date
+        }
+      ]
+    });
+
+    try {
+      final request = http.Request('GET', url);
+      request.headers.addAll(headers);
+      request.body = body;
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+      final responseBody = jsonDecode(response.body);
+
+      // Cek sesi kedaluwarsa
+      if (responseBody['status'] == 400 &&
+          (responseBody['message'] == 'sesi telah kedaluwarsa.' ||
+              responseBody['message'] == 'Sesi tidak ditemukan.')) {
+        throw SessionExpiredException('Sesi telah kedaluwarsa.');
+      }
+
+      // Berhasil
+      if (response.statusCode == 200 && responseBody['status'] == 200) {
+        if (responseBody['results']['data'] is List) {
+          final List<dynamic> data = responseBody['results']['data'];
+          return data.map((json) => AttendanceData.fromJson(json)).toList();
+        }
+      }
+
+      // Gagal tapi bukan error (misal: hari libur, tidak ada data)
+      return [];
+
+    } catch (e) {
+      if (e is SessionExpiredException) rethrow; // Lempar error sesi agar ditangani Future.wait
+      print("❌ Error _fetchSingleDayHistory for $date: $e");
+      return []; // Kembalikan list kosong jika ada error lain
+    }
+  }
 }
+

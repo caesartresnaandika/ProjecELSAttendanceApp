@@ -9,7 +9,6 @@ import 'package:intl/intl.dart';
 import 'package:project_aplikasi_absensi_hrd_els/services/api_services.dart';
 import 'package:project_aplikasi_absensi_hrd_els/services/session_manager.dart';
 import 'package:project_aplikasi_absensi_hrd_els/models/user_model.dart';
-import 'package:project_aplikasi_absensi_hrd_els/screens/MainMenu/MainMenu.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../SignIn/SignInPage.dart';

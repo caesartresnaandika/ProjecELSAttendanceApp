@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:project_aplikasi_absensi_hrd_els/screens/AuthWrapper.dart';
-import 'package:project_aplikasi_absensi_hrd_els/screens/SignIn/SignInPage.dart';
 import 'package:intl/date_symbol_data_local.dart';
-// import 'screens/MainMenu/MainMenu.dart'; // Import ini tidak lagi diperlukan di sini
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('id_ID', null);
-  // Tambahkan inisialisasi Firebase di sini jika sudah siap
   runApp(const MyApp());
 }
 
